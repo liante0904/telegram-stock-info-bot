@@ -1,0 +1,7 @@
+
+matplotlib
+pandas
+pykrx
+requests
+python-telegram-buyTrend-oscillator-bot
+watchdog
