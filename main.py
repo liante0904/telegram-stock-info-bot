@@ -139,13 +139,19 @@ async def process_selected_stock_for_chart(update: Update, context: CallbackCont
     else:
         await update.callback_query.message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
 
-    # 미디어 그룹을 한 번만 전송
-    await generate_and_send_charts_from_files(context, chat_id, context.user_data['generated_charts'])
+    # 나머지 종목 처리
+    remaining_stocks = context.user_data.get('remaining_stocks', [])
+    if remaining_stocks:
+        context.user_data['stock_list'] = remaining_stocks
+        await process_stock_list(update, context, user_id, update.callback_query.message)
+    else:
+        # 미디어 그룹을 한 번만 전송
+        await generate_and_send_charts_from_files(context, chat_id, context.user_data['generated_charts'])
 
-    # 모든 차트 생성 후 상태 재설정
-    context.user_data['next_command'] = None
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
-    context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
+        # 모든 차트 생성 후 상태 재설정
+        context.user_data['next_command'] = None
+        await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
+        context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
 
 async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
@@ -169,16 +175,17 @@ async def set_commands(bot):
 def main():
     secret_key = SecretKey()
     secret_key.load_secrets()
-    token = secret_key.TELEGRAM_BOT_TOKEN_REPORT_ALARM_SECRET
     
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
-
+    print(env)
     if env == 'production':
         token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
     else:
         token = os.getenv('TELEGRAM_BOT_TOKEN_TEST')
 
+
+    # token = secret_key.TELEGRAM_BOT_TOKEN_MAGIC_FORMULA_SECRET
     application = ApplicationBuilder().token(token).build()
 
     recent_searches = load_recent_searches()
