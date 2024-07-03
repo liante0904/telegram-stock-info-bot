@@ -38,3 +38,4 @@ secrets.json
 nohup.out
 recent_searches.json
 *:Zone.Identifier
+(main)telegram-stock-info-bot.code-workspace
