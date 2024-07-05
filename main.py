@@ -4,12 +4,11 @@ import os
 import asyncio
 import re
 from dotenv import load_dotenv
-from package.SecretKey import SecretKey
-from stock_search import search_stock
-from chart import draw_chart, CHART_DIR
-from recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
-from report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
-from chart_handler import generate_and_send_charts_from_files
+from module.stock_search import search_stock
+from module.chart import draw_chart, CHART_DIR
+from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
+from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
+from handler.chart_handler import generate_and_send_charts_from_files
 from datetime import datetime, timedelta
 
 async def chart(update: Update, context: CallbackContext) -> None:
@@ -173,8 +172,6 @@ async def set_commands(bot):
     await bot.set_my_commands(commands)
 
 def main():
-    secret_key = SecretKey()
-    secret_key.load_secrets()
     
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -185,7 +182,6 @@ def main():
         token = os.getenv('TELEGRAM_BOT_TOKEN_TEST')
 
 
-    # token = secret_key.TELEGRAM_BOT_TOKEN_MAGIC_FORMULA_SECRET
     application = ApplicationBuilder().token(token).build()
 
     recent_searches = load_recent_searches()

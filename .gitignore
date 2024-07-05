@@ -5,7 +5,6 @@ Thumbs.db
 # 로컬 환경 설정 파일
 *.local
 *.env
-
 # 로그 파일 및 디렉토리
 logs/
 *.log
@@ -38,4 +37,5 @@ secrets.json
 nohup.out
 recent_searches.json
 *:Zone.Identifier
-(main)telegram-stock-info-bot.code-workspace
+# rawData
+*.csv

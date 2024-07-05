@@ -1,9 +1,9 @@
 # chart_handler.py
 from telegram import InputMediaPhoto
 import os
-from stock_search import search_stock
-from chart import draw_chart, get_last_date, CHART_DIR
-from recent_searches import save_recent_searches
+from module.stock_search import search_stock
+from module.chart import draw_chart, get_last_date, CHART_DIR
+from module.recent_searches import save_recent_searches
 
 async def generate_and_send_charts(context, chat_id, stock_list, user_id):
     media_groups = []

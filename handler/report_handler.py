@@ -1,10 +1,10 @@
 # report_handler.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from naver_report_search_pc import search_stock_report
-from stock_search import search_stock
-from recent_searches import save_recent_searches
 from datetime import datetime, timedelta
+from module.naver_report_search_pc import search_stock_report
+from module.stock_search import search_stock
+from module.recent_searches import save_recent_searches
 
 async def process_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
