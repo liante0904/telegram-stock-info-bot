@@ -51,7 +51,7 @@ def draw_chart(stock_code, stock_name):
     ax2 = ax1.twinx()
     color = 'tab:red'
     ax2.set_ylabel('수급 오실레이터 (%)', color=color)
-    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터(매수금액기준)', color=color)
+    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     osc_min = data['수급오실레이터'].min()
     osc_max = data['수급오실레이터'].max()
@@ -68,7 +68,7 @@ def draw_chart(stock_code, stock_name):
     ax1.set_xticks(list(ax1.get_xticks()) + [mdates.date2num(data.index[-1])])
     ax1.set_xticklabels([item.get_text() if i != len(ax1.get_xticks()) - 1 else data.index[-1].strftime('%Y-%m-%d') for i, item in enumerate(ax1.get_xticklabels())])
 
-    plt.title(f'{stock_name} 시가총액과 수급 오실레이터', fontsize=24, pad=40)  # 글씨 크기를 24포인트로 설정하고 아래로 40포인트 패딩
+    plt.title(f'{stock_name} 시가총액과 수급 오실레이터(매수금액기준)', fontsize=24, pad=40)  # 글씨 크기를 24포인트로 설정하고 아래로 40포인트 패딩
     fig.legend(loc='upper left', bbox_to_anchor=(0.1, 0.9))
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])  # 타이틀 공간 확보를 위해 rect 조정
