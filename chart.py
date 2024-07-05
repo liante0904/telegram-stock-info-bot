@@ -21,13 +21,15 @@ def draw_chart(stock_code, stock_name):
         end_date = now.strftime('%Y-%m-%d')
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
 
-    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code)
-    trading_value['외국인_순매수_5일합'] = trading_value['외국인합계'].rolling(window=5).sum()
-    trading_value['기관_순매수_5일합'] = trading_value['기관합계'].rolling(window=5).sum()
+    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='매수')
+    
+    # 기관과 외국인의 매수 금액 5일 합 계산
+    trading_value['외국인_매수_5일합'] = trading_value['외국인합계'].rolling(window=5).sum()
+    trading_value['기관_매수_5일합'] = trading_value['기관합계'].rolling(window=5).sum()
 
     data = pd.DataFrame({
-        '외국인_순매수_5일합': trading_value['외국인_순매수_5일합'],
-        '기관_순매수_5일합': trading_value['기관_순매수_5일합']
+        '외국인_매수_5일합': trading_value['외국인_매수_5일합'],
+        '기관_매수_5일합': trading_value['기관_매수_5일합']
     })
     data = data.dropna()
 
@@ -35,7 +37,7 @@ def draw_chart(stock_code, stock_name):
     data = data.join(market_cap[['시가총액']], how='inner')
 
     # 수급 오실레이터 %를 시가총액으로 보정
-    data['수급오실레이터'] = (data['외국인_순매수_5일합'] + data['기관_순매수_5일합']) / data['시가총액'] * 100
+    data['수급오실레이터'] = (data['외국인_매수_5일합'] + data['기관_매수_5일합']) / data['시가총액'] * 100
     data = data.dropna()
 
     fig, ax1 = plt.subplots(figsize=(14, 7))
@@ -49,7 +51,7 @@ def draw_chart(stock_code, stock_name):
     ax2 = ax1.twinx()
     color = 'tab:red'
     ax2.set_ylabel('수급 오실레이터 (%)', color=color)
-    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color=color)
+    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터(매수금액기준)', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     osc_min = data['수급오실레이터'].min()
     osc_max = data['수급오실레이터'].max()
@@ -97,7 +99,7 @@ def get_last_date(stock_code):
     else:
         end_date = now.strftime('%Y-%m-%d')
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
-    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code)
+    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='매수')
     return trading_value.index[-1].strftime('%Y%m%d')
 
 def main():
