@@ -39,3 +39,4 @@ recent_searches.json
 *:Zone.Identifier
 # rawData
 *.csv
+(main)telegram-stock-info-bot.code-workspace
