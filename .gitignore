@@ -37,3 +37,5 @@ secrets.json
 nohup.out
 recent_searches.json
 *:Zone.Identifier
+# rawData
+*.csv
