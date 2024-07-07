@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 import subprocess
+import platform
 
 CHART_DIR = "chart"
 
@@ -85,11 +86,12 @@ def open_image(image_path):
     if 'WSL' in os.uname().release:
         subprocess.run(['code', image_path])  # WSL 환경에서 VSCode로 열기
     else:
-        if os.name == 'posix':
+        system = platform.system()
+        if system == 'Linux':
             subprocess.run(['xdg-open', image_path])  # Linux
-        elif os.name == 'nt':
+        elif system == 'Windows':
             os.startfile(image_path)  # Windows
-        elif os.name == 'mac':
+        elif system == 'Darwin':
             subprocess.run(['open', image_path])  # macOS
 
 def get_last_date(stock_code):
