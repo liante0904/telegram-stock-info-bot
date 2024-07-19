@@ -3,6 +3,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import os
 import asyncio
 import re
+import json
 from dotenv import load_dotenv
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
@@ -10,6 +11,10 @@ from module.recent_searches import load_recent_searches, save_recent_searches, s
 from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
 from handler.chart_handler import generate_and_send_charts_from_files
 from datetime import datetime, timedelta
+
+
+# JSON 파일 경로
+KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 
 async def chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -21,11 +26,85 @@ async def report(update: Update, context: CallbackContext) -> None:
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요.')
     context.user_data['next_command'] = 'search_report'
 
+
+async def report_alert_keyword(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    user_id = str(update.effective_user.id)
+    
+    # 현재 저장된 키워드 로드
+    all_keywords = load_keywords()
+    current_keywords = [keyword['keyword'] for keyword in all_keywords.get(user_id, [])]
+
+    # 사용자에게 현재 저장된 키워드를 보여주고 입력 요청
+    if current_keywords:
+        keyword_text = '\n'.join([f"- {keyword}" for keyword in current_keywords])
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"현재 저장된 알림 키워드:\n{keyword_text}\n\n새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요."
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text='현재 저장된 알림 키워드가 없습니다. \n\n 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
+        )
+
+    # 다음 명령어 상태 설정
+    context.user_data['next_command'] = 'report_alert_keyword'
+
+# JSON 파일에서 사용자 알림 키워드를 불러오는 함수
+def load_keywords():
+    if os.path.exists(KEYWORD_FILE_PATH):
+        with open(KEYWORD_FILE_PATH, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    return {}
+
+# JSON 파일에 사용자 알림 키워드를 저장하는 함수
+def save_keywords(keywords):
+    with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
+        json.dump(keywords, file, ensure_ascii=False, indent=4)
+
+
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     next_command = context.user_data.get('next_command')
 
-    if next_command == 'generate_chart':
+    if next_command == 'report_alert_keyword':
+        user_input = update.message.text
+        # 쉼표와 하이픈을 구분자로 사용하여 입력 처리
+        keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
+
+        # 중복 제거를 위해 set 사용
+        unique_keywords = set(keywords)
+
+        # 현재 저장된 키워드 로드 및 중복 제거
+        all_keywords = load_keywords()
+        if user_id not in all_keywords:
+            all_keywords[user_id] = []
+
+        # 기존 키워드에서 중복 제거
+        existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
+        new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
+
+        # 사용자 알림 키워드 업데이트
+        all_keywords[user_id].extend(new_keywords)
+        # 각 사용자별로 중복 키워드 제거
+        unique_user_keywords = {}
+        for entry in all_keywords[user_id]:
+            unique_user_keywords[entry['keyword']] = entry
+        all_keywords[user_id] = list(unique_user_keywords.values())
+
+        save_keywords(all_keywords)
+
+
+        # 상태 초기화 및 확인 메시지 전송
+        context.user_data['next_command'] = None
+        updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
+        updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
+        )
+    elif next_command == 'generate_chart':
         user_input = update.message.text
         stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
         context.user_data['stock_list'] = stock_list
@@ -167,7 +246,8 @@ async def set_commands(bot):
     commands = [
         BotCommand("chart", "수급오실레이터 차트"),
         BotCommand("recent", "최근 검색 종목"),
-        BotCommand("report", "레포트 검색기")
+        BotCommand("report", "레포트 검색기"),
+        BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")  # 추가된 명령어
     ]
     await bot.set_my_commands(commands)
 
@@ -190,6 +270,7 @@ def main():
     application.add_handler(CommandHandler("chart", chart))  # /chart 명령어 추가
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("report", report))  # 레포트 검색기 명령어 추가
+    application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
     application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
