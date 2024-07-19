@@ -20,8 +20,8 @@ numpy>=1.16,<2.0
 packaging==24.1
 pandas==2.0.3  # 호환 가능한 최신 버전으로 변경
 pillow==10.3.0
-#pykrx==1.0.45
-git+https://github.com/liante0904/pykrx.git@main#egg=pykrx
+pykrx==1.0.48
+# git+https://github.com/liante0904/pykrx.git@main#egg=pykrx
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
