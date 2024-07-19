@@ -45,7 +45,7 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     else:
         await context.bot.send_message(
             chat_id=chat_id,
-            text='현재 저장된 알림 키워드가 없습니다. 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
+            text='현재 저장된 알림 키워드가 없습니다. \n\n 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
         )
 
     # 다음 명령어 상태 설정
