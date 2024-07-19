@@ -1,20 +1,32 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 import os
+import json
 import asyncio
 import re
-import json
-from dotenv import load_dotenv
-from module.stock_search import search_stock
-from module.chart import draw_chart, CHART_DIR
-from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
-from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
-from handler.chart_handler import generate_and_send_charts_from_files
 from datetime import datetime, timedelta
-
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
+from dotenv import load_dotenv
+from package.SecretKey import SecretKey
+from stock_search import search_stock
+from chart import draw_chart, CHART_DIR
+from recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
+from report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
+from chart_handler import generate_and_send_charts_from_files
 
 # JSON 파일 경로
 KEYWORD_FILE_PATH = 'report_alert_keyword.json'
+
+# JSON 파일에서 사용자 알림 키워드를 불러오는 함수
+def load_keywords():
+    if os.path.exists(KEYWORD_FILE_PATH):
+        with open(KEYWORD_FILE_PATH, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    return {}
+
+# JSON 파일에 사용자 알림 키워드를 저장하는 함수
+def save_keywords(keywords):
+    with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
+        json.dump(keywords, file, ensure_ascii=False, indent=4)
 
 async def chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -25,7 +37,6 @@ async def report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요.')
     context.user_data['next_command'] = 'search_report'
-
 
 async def report_alert_keyword(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -51,19 +62,6 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     # 다음 명령어 상태 설정
     context.user_data['next_command'] = 'report_alert_keyword'
 
-# JSON 파일에서 사용자 알림 키워드를 불러오는 함수
-def load_keywords():
-    if os.path.exists(KEYWORD_FILE_PATH):
-        with open(KEYWORD_FILE_PATH, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    return {}
-
-# JSON 파일에 사용자 알림 키워드를 저장하는 함수
-def save_keywords(keywords):
-    with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
-        json.dump(keywords, file, ensure_ascii=False, indent=4)
-
-
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     next_command = context.user_data.get('next_command')
@@ -73,28 +71,14 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         # 쉼표와 하이픈을 구분자로 사용하여 입력 처리
         keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
 
-        # 중복 제거를 위해 set 사용
-        unique_keywords = set(keywords)
-
-        # 현재 저장된 키워드 로드 및 중복 제거
+        # 현재 저장된 키워드 로드
         all_keywords = load_keywords()
         if user_id not in all_keywords:
             all_keywords[user_id] = []
 
-        # 기존 키워드에서 중복 제거
-        existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
-        new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
-
         # 사용자 알림 키워드 업데이트
-        all_keywords[user_id].extend(new_keywords)
-        # 각 사용자별로 중복 키워드 제거
-        unique_user_keywords = {}
-        for entry in all_keywords[user_id]:
-            unique_user_keywords[entry['keyword']] = entry
-        all_keywords[user_id] = list(unique_user_keywords.values())
-
+        all_keywords[user_id] = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in keywords]
         save_keywords(all_keywords)
-
 
         # 상태 초기화 및 확인 메시지 전송
         context.user_data['next_command'] = None
@@ -104,16 +88,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             chat_id=update.effective_chat.id,
             text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
         )
+
     elif next_command == 'generate_chart':
         user_input = update.message.text
-        stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
+        stock_list = [stock.strip() for stock in re.split('[,-\n]', user_input) if stock.strip()]
         context.user_data['stock_list'] = stock_list
         context.user_data['generated_charts'] = []
         await process_stock_list(update, context, user_id, update.message)
 
     elif next_command == 'search_report':
         user_input = update.message.text
-        stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
+        stock_list = [stock.strip() for stock in re.split('[,-\n]', user_input) if stock.strip()]
         context.user_data['stock_list'] = stock_list
         context.user_data['writeFromDate'] = (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d')
         context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
@@ -132,8 +117,8 @@ async def process_stock_list(update: Update, context: CallbackContext, user_id: 
             # 최근 검색 종목에 추가 (중복 방지)
             if user_id not in context.bot_data['recent_searches']:
                 context.bot_data['recent_searches'][user_id] = []
-            if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
-                context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
+            if not any(search['keyword'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
+                context.bot_data['recent_searches'][user_id].append({'keyword': stock_name, 'code': stock_code})
             save_recent_searches(context.bot_data['recent_searches'])
 
             chart_filename = draw_chart(stock_code, stock_name)
@@ -185,20 +170,26 @@ async def generate_and_send_charts_from_files(context: CallbackContext, chat_id,
 
 async def select_stock(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
-    await query.answer()
-    selected_code = query.data
+    stock_code = query.data
     results = context.user_data.get('search_results', [])
-    next_command = context.user_data.get('next_command')
+    selected_stock = next((result for result in results if result['code'] == stock_code), None)
+    
+    if selected_stock:
+        await process_selected_stock_for_chart(update, context, selected_stock['name'], stock_code)
+    else:
+        await query.message.reply_text("선택한 종목이 올바르지 않습니다. 다시 시도하세요.")
 
-    for result in results:
-        if result['code'] == selected_code:
-            stock_name, stock_code = result['name'], result['code']
-            if next_command == 'generate_chart':
-                await process_selected_stock_for_chart(update, context, stock_name, stock_code)
-            elif next_command == 'search_report':
-                await process_selected_stock_for_report(update, context, stock_name, stock_code)
+async def previous_search(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    recent_searches = context.bot_data.get('recent_searches', {}).get(user_id, [])
+    if recent_searches:
+        buttons = [[InlineKeyboardButton(f"{search['keyword']} ({search['code']})", callback_data=search['code'])] for search in recent_searches]
+        reply_markup = InlineKeyboardMarkup(buttons)
+        await update.callback_query.message.reply_text("최근 검색한 종목을 선택하세요:", reply_markup=reply_markup)
+    else:
+        await update.callback_query.message.reply_text("최근 검색한 종목이 없습니다.")
 
-async def process_selected_stock_for_chart(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+async def process_selected_stock_for_chart(update: Update, context: CallbackContext, stock_name: str, stock_code: str) -> None:
     chat_id = update.effective_chat.id
     user_id = str(update.effective_user.id)
     
@@ -207,8 +198,8 @@ async def process_selected_stock_for_chart(update: Update, context: CallbackCont
     # 최근 검색 종목에 추가 (중복 방지)
     if user_id not in context.bot_data['recent_searches']:
         context.bot_data['recent_searches'][user_id] = []
-    if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
-        context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
+    if not any(search['keyword'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
+        context.bot_data['recent_searches'][user_id].append({'keyword': stock_name, 'code': stock_code})
     save_recent_searches(context.bot_data['recent_searches'])
 
     chart_filename = draw_chart(stock_code, stock_name)
@@ -231,7 +222,7 @@ async def process_selected_stock_for_chart(update: Update, context: CallbackCont
         await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
         context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
 
-async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str) -> None:
     context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
     context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
     await fetch_and_send_reports(update, context, str(update.callback_query.from_user.id), update.callback_query.message, stock_name, stock_code, context.user_data['writeFromDate'], context.user_data['writeToDate'])
@@ -247,11 +238,13 @@ async def set_commands(bot):
         BotCommand("chart", "수급오실레이터 차트"),
         BotCommand("recent", "최근 검색 종목"),
         BotCommand("report", "레포트 검색기"),
-        BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")  # 추가된 명령어
+        BotCommand("report_alert_keyword", "알림 키워드 설정")  # 추가된 명령어
     ]
     await bot.set_my_commands(commands)
 
 def main():
+    secret_key = SecretKey()
+    secret_key.load_secrets()
     
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -260,7 +253,6 @@ def main():
         token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
     else:
         token = os.getenv('TELEGRAM_BOT_TOKEN_TEST')
-
 
     application = ApplicationBuilder().token(token).build()
 
