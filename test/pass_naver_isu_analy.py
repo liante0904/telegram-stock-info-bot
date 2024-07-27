@@ -24,7 +24,7 @@ def fetch_stock_info(stock_code):
     stock_name_tag = soup.find('div', {'class': 'wrap_company'}).find('h2')
     if stock_name_tag:
         stock_name = stock_name_tag.get_text(strip=True).split(' ')[0]  # 종목명만 추출
-        print(f"종목명: {stock_name}")  # 로그: 종목명
+        # print(f"종목명: {stock_name}")  # 로그: 종목명
     else:
         stock_name = 'N/A'
         print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
@@ -82,7 +82,7 @@ def fetch_stock_info(stock_code):
         est_dividend_price_value = est_dividend_price_value.replace(',', '')  # 쉼표 제거
 
         est_dividend_price_value = int(est_dividend_price_value)
-        print(est_dividend_price_value)
+
         est_dividend_yield_value = current_price / est_dividend_price_value * 100
         # 소수점 셋째 자리에서 반올림
         est_dividend_yield_value = round(est_dividend_yield_value, 2)

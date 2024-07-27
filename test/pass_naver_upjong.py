@@ -31,8 +31,9 @@ def fetch_upjong_list():
         cols = row.find_all('td')
         if len(cols) >= 2:  # 필요한 만큼의 데이터가 있는지 확인
             업종명 = cols[0].get_text(strip=True)
+            등락률 = cols[1].get_text(strip=True)
             링크 = cols[0].find('a')['href']
-            data.append((업종명, 링크))
+            data.append((업종명, 등락률, 링크))
     
     return data
 
@@ -84,9 +85,9 @@ def main():
     
     if args.upjong_name:
         # 업종명을 입력받은 경우
-        upjong_map = {업종명: 링크 for 업종명, 링크 in upjong_list}
+        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
         if args.upjong_name in upjong_map:
-            링크 = upjong_map[args.upjong_name]
+            등락률, 링크 = upjong_map[args.upjong_name]
             stock_info = fetch_stock_info(링크)
             if stock_info:
                 print(f'\n업종명: {args.upjong_name}')
@@ -100,8 +101,8 @@ def main():
     else:
         # 업종명을 입력받지 않은 경우
         print("업종 목록:")
-        for 업종명, _ in upjong_list:
-            print(f'업종명: {업종명}')
+        for 업종명, 등락률, _ in upjong_list:
+            print(f'업종명: {업종명}, 등락률: {등락률}')
 
 if __name__ == '__main__':
     main()
