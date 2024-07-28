@@ -291,33 +291,45 @@ async def naver_upjong_quant_response(update: Update, context: CallbackContext) 
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
 
-# 업종 목록을 보여주는 함수
+# 업종 목록을 보여주는 함수 (인덱스 포함)
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     try:
         upjong_list = fetch_upjong_list()
         upjong_message = "업종 목록:\n"
-        for 업종명, 등락률, _ in upjong_list:
-            upjong_message += f'업종명: {업종명}, 등락률: {등락률}\n'
-        upjong_message += "\n검색할 업종명을 입력하세요."
+        upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
+        
+        for i, (업종명, 등락률, _) in upjong_map.items():
+            upjong_message += f"{i}. {업종명} - 등락률: {등락률}\n"
+
+        upjong_message += "\n업종 번호를 입력하세요."
+        context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
         await context.bot.send_message(chat_id=chat_id, text=upjong_message)
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
 
-
-# 업종명에 대한 응답을 처리하는 함수
 async def handle_upjong_search(update: Update, context: CallbackContext) -> None:
     user_input = update.message.text
     chat_id = update.effective_chat.id
-    
+
     try:
         # 업종 목록을 가져옵니다.
         upjong_list = fetch_upjong_list()
-        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
         
-        if user_input in upjong_map:
-            등락률, 링크 = upjong_map[user_input]
-            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {user_input}\n등락률: {등락률}")
+        # 업종 정보를 매핑합니다.
+        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
+        # 업종 번호와 이름 매핑을 생성합니다.
+        upjong_number_map = {str(index + 1): 업종명 for index, (업종명, _, _) in enumerate(upjong_list)}
+
+        # 사용자가 입력한 것이 번호일 경우 업종명을 찾습니다.
+        if user_input in upjong_number_map:
+            업종명 = upjong_number_map[user_input]
+        else:
+            업종명 = user_input
+        
+        if 업종명 in upjong_map:
+            등락률, 링크 = upjong_map[업종명]
+            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
                 
             # 종목 정보를 가져옵니다.
             stock_info = fetch_stock_info(링크)
@@ -331,7 +343,7 @@ async def handle_upjong_search(update: Update, context: CallbackContext) -> None
                         all_quant_data.append(quant_data)
                 
                 # CSV 파일로 저장 (UTF-8 BOM 추가)
-                csv_file_name = f'{user_input}_quant.csv'
+                csv_file_name = f'{업종명}_quant.csv'
                 with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
                     writer = csv.writer(file)
                     if all_quant_data:
@@ -343,14 +355,22 @@ async def handle_upjong_search(update: Update, context: CallbackContext) -> None
                             writer.writerow(quant_data.values())
                 
                 print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+                
                 # CSV 파일 전송
-                await context.bot.send_message(chat_id=chat_id, text="업종명: {}에 대한 종목 정보".format(user_input))
-                # CSV 파일 전송
-                with open(csv_file_name, 'rb') as file:
-                    await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                if os.path.exists(csv_file_name):
+                    with open(csv_file_name, 'rb') as file:
+                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
             else:
                 await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
-
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
+    
+    except FileNotFoundError:
+        await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
+    except IOError as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
 
