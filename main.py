@@ -1,10 +1,13 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 import os
+import csv
+from io import StringIO
 import asyncio
 import re
 import json
 from dotenv import load_dotenv
+from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info, fetch_stock_info_quant
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
@@ -45,7 +48,7 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     else:
         await context.bot.send_message(
             chat_id=chat_id,
-            text='현재 저장된 알림 키워드가 없습니다. \n\n 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
+            text='현재 저장된 알림 키워드가 없습니다. 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
         )
 
     # 다음 명령어 상태 설정
@@ -242,17 +245,148 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
         context.user_data['stock_list'] = remaining_stocks
         await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
 
+async def naver_upjong_quant(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(chat_id=chat_id, text='네이버 업종퀀트를 검색합니다. \n\n검색할 업종명을 입력하세요.')
+
+
+async def naver_upjong_quant_response(update: Update, context: CallbackContext) -> None:
+    user_input = update.message.text
+    chat_id = update.effective_chat.id
+
+    try:
+        # 업종 목록을 가져옵니다.
+        upjong_list = fetch_upjong_list()
+        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
+
+        if user_input in upjong_map:
+            등락률, 링크 = upjong_map[user_input]
+            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {user_input}\n등락률: {등락률}")
+
+            # 종목 정보를 가져옵니다.
+            stock_info = fetch_stock_info(링크)
+            if stock_info:
+                # CSV 파일 생성
+                output = StringIO()
+                csv_writer = csv.writer(output)
+                
+                # CSV 파일 헤더 추가
+                csv_writer.writerow(['종목명', '현재가', '전일비', '등락률', '링크'])
+                
+                for 종목명, 현재가, 전일비, 등락률, 종목링크 in stock_info:
+                    csv_writer.writerow([종목명, 현재가, 전일비, 등락률, 종목링크])
+                
+                # CSV 파일의 내용을 문자열로 변환
+                output.seek(0)
+                csv_data = output.getvalue()
+                output.close()
+                
+                # CSV 파일 전송
+                await context.bot.send_message(chat_id=chat_id, text="업종명: {}에 대한 종목 정보".format(user_input))
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(csv_data.encode('utf-8-sig'), filename=f'{user_input}_stock_info.csv'))
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
+
+# 업종 목록을 보여주는 함수 (인덱스 포함)
+async def show_upjong_list(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    try:
+        upjong_list = fetch_upjong_list()
+        upjong_message = "업종 목록:\n"
+        upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
+        
+        for i, (업종명, 등락률, _) in upjong_map.items():
+            upjong_message += f"{i}. {업종명} - 등락률: {등락률}\n"
+
+        upjong_message += "\n업종 번호 혹은 업종명(정확하게) 입력하세요."
+        context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
+        await context.bot.send_message(chat_id=chat_id, text=upjong_message)
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
+
+async def handle_upjong_search(update: Update, context: CallbackContext) -> None:
+    user_input = update.message.text
+    chat_id = update.effective_chat.id
+
+    try:
+        # 업종 목록을 가져옵니다.
+        upjong_list = fetch_upjong_list()
+        
+        # 업종 정보를 매핑합니다.
+        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
+        # 업종 번호와 이름 매핑을 생성합니다.
+        upjong_number_map = {str(index + 1): 업종명 for index, (업종명, _, _) in enumerate(upjong_list)}
+
+        # 사용자가 입력한 것이 번호일 경우 업종명을 찾습니다.
+        if user_input in upjong_number_map:
+            업종명 = upjong_number_map[user_input]
+        else:
+            업종명 = user_input
+        
+        if 업종명 in upjong_map:
+            등락률, 링크 = upjong_map[업종명]
+            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
+                
+            # 종목 정보를 가져옵니다.
+            stock_info = fetch_stock_info(링크)
+            if stock_info:
+                all_quant_data = []
+                for 종목명, _, _, _, 종목링크 in stock_info:
+                    # 종목 링크에서 종목 코드를 추출
+                    stock_code = 종목링크.split('=')[-1]  # 'code=종목코드' 형식으로 링크가 제공된다고 가정
+                    quant_data = fetch_stock_info_quant(stock_code)
+                    if quant_data:
+                        all_quant_data.append(quant_data)
+                
+                # CSV 파일로 저장 (UTF-8 BOM 추가)
+                # 현재 날짜를 포함한 CSV 파일명 생성
+                today_date = datetime.today().strftime('%y%m%d')
+                csv_file_name = f'{업종명}_quant_{today_date}.csv'
+                with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
+                    writer = csv.writer(file)
+                    if all_quant_data:
+                        # CSV 파일에 헤더 추가
+                        header = all_quant_data[0].keys()
+                        writer.writerow(header)
+                        # 데이터 추가
+                        for quant_data in all_quant_data:
+                            writer.writerow(quant_data.values())
+                
+                print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+                
+                # CSV 파일 전송
+                if os.path.exists(csv_file_name):
+                    with open(csv_file_name, 'rb') as file:
+                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
+    
+    except FileNotFoundError:
+        await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
+    except IOError as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
+
 async def set_commands(bot):
     commands = [
         BotCommand("chart", "수급오실레이터 차트"),
         BotCommand("recent", "최근 검색 종목"),
         BotCommand("report", "레포트 검색기"),
-        BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")  # 추가된 명령어
+        BotCommand("naver_upjong_quant", "네이버 업종퀀트"),  # 새로 추가된 명령어
+        BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")
     ]
     await bot.set_my_commands(commands)
 
 def main():
-    
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
     print(env)
@@ -260,7 +394,6 @@ def main():
         token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
     else:
         token = os.getenv('TELEGRAM_BOT_TOKEN_TEST')
-
 
     application = ApplicationBuilder().token(token).build()
 
@@ -271,6 +404,14 @@ def main():
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("report", report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
+
+    # 새 명령어 핸들러 추가
+    # application.add_handler(CommandHandler("naver_upjong_quant", naver_upjong_quant))  # 네이버 업종퀀트 명령어 추가
+    # 커맨드 핸들러 추가
+    application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
+
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_upjong_search))  # 네이버 업종퀀트 응답 처리
+
     application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -280,6 +421,7 @@ def main():
     loop.run_until_complete(set_commands(application.bot))
 
     application.run_polling()
+
 
 if __name__ == '__main__':
     if not os.path.exists(CHART_DIR):
