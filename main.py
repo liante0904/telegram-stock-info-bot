@@ -302,7 +302,7 @@ async def show_upjong_list(update: Update, context: CallbackContext) -> None:
         for i, (업종명, 등락률, _) in upjong_map.items():
             upjong_message += f"{i}. {업종명} - 등락률: {등락률}\n"
 
-        upjong_message += "\n업종 번호를 입력하세요."
+        upjong_message += "\n업종 번호 혹은 업종명(정확하게) 입력하세요."
         context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
         await context.bot.send_message(chat_id=chat_id, text=upjong_message)
     except Exception as e:
