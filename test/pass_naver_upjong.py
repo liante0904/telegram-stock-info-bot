@@ -1,4 +1,6 @@
 import argparse
+import csv
+import re
 import requests
 from bs4 import BeautifulSoup
 
@@ -72,13 +74,172 @@ def fetch_stock_info(upjong_link):
             else:
                 전일비 = 전일비_raw  # 기본적으로 변환되지 않는 경우 원래 값 유지
 
-            stock_data.append((종목명, 현재가, 전일비, 등락률))
+            # 종목 링크 추출
+            link_tag = cols[0].find('a')
+            if link_tag and 'href' in link_tag.attrs:
+                link = base_url + link_tag['href']
+            else:
+                link = 'N/A'  # 링크가 없는 경우 'N/A'로 처리
+
+            stock_data.append((종목명, 현재가, 전일비, 등락률, link))
     
     return stock_data
+
+def fetch_stock_info_quant(stock_code):
+    url = f'https://finance.naver.com/item/main.naver?code={stock_code}'
+    
+    print(f"Fetching data from: {url}")  # Debugging message
+    
+    # HTTP 요청
+    response = requests.get(url, headers=headers)
+    response.encoding = 'euc-kr'
+    
+    if response.status_code == 200:
+        print("Page successfully fetched.")  # Debugging message
+    else:
+        print(f"Failed to fetch page: Status code {response.status_code}")
+        return {}
+
+    # 페이지 내용 파싱
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # 종목명 추출
+    stock_name_tag = soup.find('div', {'class': 'wrap_company'}).find('h2')
+    if stock_name_tag:
+        stock_name = stock_name_tag.get_text(strip=True).split(' ')[0]  # 종목명만 추출
+    else:
+        stock_name = 'N/A'
+        print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
+
+    # PER, 추정PER, PBR, 배당수익률 정보를 담고 있는 테이블 찾기
+    info_section = soup.select_one('#tab_con1 > div:nth-child(5)')
+    if not info_section:
+        print("정보 섹션을 찾을 수 없습니다.")
+        return
+
+    print("Information section found.")  # 로그: 정보 섹션 찾음
+
+    # 각 항목에 대한 CSS 선택자
+    data = {'종목명': stock_name}
+    
+    try:
+        # 현재주가 
+        current_price = soup.select_one('#middle > dl > dd:nth-child(5)').get_text(strip=True)
+        match = re.search(r'현재가 ([\d,]+) 전일대비', current_price)
+
+        # 변수 정의 및 값 추출
+        if match:
+            current_price = match.group(1)  # 찾은 값
+            current_price = int(current_price.replace(',', ''))  # 쉼표 제거
+            print(f'현재가: {current_price}')
+        else:
+            current_price = 'N/A'
+            print('현재가를 찾을 수 없습니다.')
+
+        # PER
+        per_value = info_section.select_one('tr:nth-of-type(1) > td')
+        if per_value:
+            data['PER'] = per_value.get_text(strip=True).split('l')[0].split('배')[0]
+        else:
+            data['PER'] = 'N/A'
+            print("PER 값을 찾을 수 없습니다.")  # 로그: PER 없음
+
+        # 추정PER
+        # FWD EPS와 현재 주식 가격을 이용한 FWD PER 계산
+        est_eps_value = soup.select_one('#_cns_eps')
+        if est_eps_value:
+            est_eps_text = est_eps_value.get_text(strip=True).split('|')[0]
+            # print('est_eps_text',est_eps_text)
+            try:
+                est_eps_value = float(est_eps_text.replace(',', ''))  # 쉼표 제거 및 부동 소수점으로 변환
+                if current_price > 0:  # 현재 주식 가격이 0보다 커야 나누기가 가능함
+                    # print('est_eps_value', est_eps_value)
+                    fwd_per = round(current_price/est_eps_value, 2)
+                    data['fwdPER'] = fwd_per
+                else:
+                    data['fwdPER'] = 'N/A'
+                    print("현재 주식 가격이 유효하지 않습니다.")
+            except ValueError:
+                data['fwdPER'] = 'N/A'
+                print("FWD EPS 값이 유효하지 않습니다.")
+        else:
+            data['fwdPER'] = 'N/A'
+            print("FWD EPS 값을 찾을 수 없습니다.")
+
+        # PBR
+        pbr_value = info_section.select_one('tr:nth-of-type(2) > td')
+        if pbr_value:
+            data['PBR'] = pbr_value.get_text(strip=True).split('l')[0].split('배')[0]
+        else:
+            data['PBR'] = 'N/A'
+            print("PBR 값을 찾을 수 없습니다.")  # 로그: PBR 없음
+
+        # 배당수익률
+        dividend_yield_value = info_section.select_one('#_dvr')
+        if dividend_yield_value:
+            data['배당수익률'] = dividend_yield_value.get_text(strip=True).split(' ')[0]
+        else:
+            data['배당수익률'] = 'N/A'
+            print("배당수익률 값을 찾을 수 없습니다.")  # 로그: 배당수익률 없음
+
+        # 예상 배당수익률
+        current_price_text = soup.select_one('#content > div.section.cop_analysis > div.sub_section > table > tbody > tr:nth-child(14) > td.t_line.cell_strong')
+        if current_price_text:
+            current_price_text = current_price_text.get_text(strip=True).split('%')[0]
+            current_price_text = current_price_text.replace(',', '')
+            try:
+                current_price = int(current_price_text)
+            except ValueError:
+                current_price = None
+        else:
+            current_price = None
+
+        est_dividend_price_value_text = soup.select_one('#content > div.section.trade_compare > table > tbody > tr:nth-child(1) > td:nth-child(2)')
+        if est_dividend_price_value_text:
+            est_dividend_price_value_text = est_dividend_price_value_text.get_text(strip=True).split('%')[0]
+            est_dividend_price_value_text = est_dividend_price_value_text.replace(',', '')
+            try:
+                est_dividend_price_value = int(est_dividend_price_value_text)
+            except ValueError:
+                est_dividend_price_value = None
+        else:
+            est_dividend_price_value = None
+
+        if current_price is not None and est_dividend_price_value is not None and est_dividend_price_value != 0:
+            est_dividend_yield_value = current_price / est_dividend_price_value * 100
+            est_dividend_yield_value = round(est_dividend_yield_value, 2)
+        else:
+            est_dividend_yield_value = 'N/A'
+
+        if est_dividend_yield_value:
+            data['예상배당수익률'] = est_dividend_yield_value
+        else:
+            data['예상배당수익률'] = 'N/A'
+            print("예상배당수익률 값을 찾을 수 없습니다.")  # 로그: 예상 배당수익률 없음
+
+        # ROE 정보 추출
+        roe_tag = soup.select_one('#content > div.section.cop_analysis > div.sub_section > table > tbody > tr:nth-child(6) > td.t_line.cell_strong')
+        if roe_tag:
+            data['ROE'] = roe_tag.get_text(strip=True).replace('\n', 'N/A').replace('\xa0', 'N/A').strip()
+        else:
+            data['ROE'] = 'N/A'
+            print("ROE 정보를 찾을 수 없습니다.")  # 로그: ROE 정보 없음
+
+    except Exception as e:
+        print(f"Error parsing data: {e}")  # 로그: 파싱 오류
+
+    for key in data:
+        if data[key] == '':
+            data[key] = 'N/A'
+
+    print(data)
+
+    return data
 
 def main():
     parser = argparse.ArgumentParser(description="업종명에 따른 종목 정보를 크롤링합니다.")
     parser.add_argument('upjong_name', type=str, nargs='?', help='업종명을 입력하세요.')
+    parser.add_argument('option', type=str, nargs='?', help='옵션: 퀀트 정보를 가져오려면 "퀀트"를 입력하세요.')
     args = parser.parse_args()
     
     upjong_list = fetch_upjong_list()
@@ -88,14 +249,46 @@ def main():
         upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
         if args.upjong_name in upjong_map:
             등락률, 링크 = upjong_map[args.upjong_name]
-            stock_info = fetch_stock_info(링크)
-            if stock_info:
-                print(f'\n업종명: {args.upjong_name}')
-                print(f"{'종목명':<20} {'현재가':<10} {'전일비':<10} {'등락률':<10}")
-                for 종목명, 현재가, 전일비, 등락률 in stock_info:
-                    print(f"{종목명:<20} {현재가:<10} {전일비:<10} {등락률:<10}")
+            if args.option == '퀀트':
+                # 퀀트 정보를 가져오는 경우
+                print(f"\n업종명: {args.upjong_name} - 퀀트 정보")
+
+                # 종목 정보를 가져옵니다.
+                stock_info = fetch_stock_info(링크)
+                if stock_info:
+                    all_quant_data = []
+                    for 종목명, _, _, _, 종목링크 in stock_info:
+                        # 종목 링크에서 종목 코드를 추출
+                        stock_code = 종목링크.split('=')[-1]  # 'code=종목코드' 형식으로 링크가 제공된다고 가정
+                        quant_data = fetch_stock_info_quant(stock_code)
+                        if quant_data:
+                            all_quant_data.append(quant_data)
+                    
+                    # CSV 파일로 저장 (UTF-8 BOM 추가)
+                    csv_file_name = f'{args.upjong_name}_quant.csv'
+                    with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
+                        writer = csv.writer(file)
+                        if all_quant_data:
+                            # CSV 파일에 헤더 추가
+                            header = all_quant_data[0].keys()
+                            writer.writerow(header)
+                            # 데이터 추가
+                            for quant_data in all_quant_data:
+                                writer.writerow(quant_data.values())
+                    
+                    print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+                else:
+                    print("종목 정보를 가져오는 데 문제가 발생했습니다.")
             else:
-                print("종목 정보를 가져오는 데 문제가 발생했습니다.")
+                # 종목 정보를 가져오는 경우
+                stock_info = fetch_stock_info(링크)
+                if stock_info:
+                    print(f'\n업종명: {args.upjong_name}')
+                    print(f"{'종목명':<20} {'현재가':<10} {'전일비':<10} {'등락률':<10}")
+                    for 종목명, 현재가, 전일비, 등락률, _ in stock_info:  # 링크는 무시
+                        print(f"{종목명:<20} {현재가:<10} {전일비:<10} {등락률:<10}")
+                else:
+                    print("종목 정보를 가져오는 데 문제가 발생했습니다.")
         else:
             print("입력한 업종명이 올바르지 않습니다.")
     else:
