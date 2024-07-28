@@ -343,7 +343,9 @@ async def handle_upjong_search(update: Update, context: CallbackContext) -> None
                         all_quant_data.append(quant_data)
                 
                 # CSV 파일로 저장 (UTF-8 BOM 추가)
-                csv_file_name = f'{업종명}_quant.csv'
+                # 현재 날짜를 포함한 CSV 파일명 생성
+                today_date = datetime.today().strftime('%Y-%m-%d')
+                csv_file_name = f'{업종명}_quant_{today_date}.csv'
                 with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
                     writer = csv.writer(file)
                     if all_quant_data:
