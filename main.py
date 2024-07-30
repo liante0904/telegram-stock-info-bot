@@ -66,61 +66,105 @@ def save_keywords(keywords):
     with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
         json.dump(keywords, file, ensure_ascii=False, indent=4)
 
-
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
+    user_input = update.message.text
+    chat_id = update.effective_chat.id
     next_command = context.user_data.get('next_command')
+    print('next_command', next_command)
+    try:
+        if next_command == 'report_alert_keyword':
+            # 키워드 알림 처리
+            keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
+            unique_keywords = set(keywords)
+            all_keywords = load_keywords()
 
-    if next_command == 'report_alert_keyword':
-        user_input = update.message.text
-        # 쉼표와 하이픈을 구분자로 사용하여 입력 처리
-        keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
+            if user_id not in all_keywords:
+                all_keywords[user_id] = []
 
-        # 중복 제거를 위해 set 사용
-        unique_keywords = set(keywords)
+            existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
+            new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
+            all_keywords[user_id].extend(new_keywords)
+            unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
+            all_keywords[user_id] = list(unique_user_keywords.values())
 
-        # 현재 저장된 키워드 로드 및 중복 제거
-        all_keywords = load_keywords()
-        if user_id not in all_keywords:
-            all_keywords[user_id] = []
+            save_keywords(all_keywords)
 
-        # 기존 키워드에서 중복 제거
-        existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
-        new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
+            context.user_data['next_command'] = None
+            updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
+            updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
+            )
 
-        # 사용자 알림 키워드 업데이트
-        all_keywords[user_id].extend(new_keywords)
-        # 각 사용자별로 중복 키워드 제거
-        unique_user_keywords = {}
-        for entry in all_keywords[user_id]:
-            unique_user_keywords[entry['keyword']] = entry
-        all_keywords[user_id] = list(unique_user_keywords.values())
+        elif next_command == 'generate_chart':
+            # 차트 생성 처리
+            stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
+            context.user_data['stock_list'] = stock_list
+            context.user_data['generated_charts'] = []
+            await process_stock_list(update, context, user_id, update.message)
 
-        save_keywords(all_keywords)
+        elif next_command == 'search_report':
+            # 보고서 검색 처리
+            stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
+            context.user_data['stock_list'] = stock_list
+            context.user_data['writeFromDate'] = (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d')
+            context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
+            await process_report_request(update, context, user_id, update.message)
 
+        else:
+            # 업종 검색 처리
+            upjong_list = fetch_upjong_list()
+            upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
+            upjong_number_map = {str(index + 1): 업종명 for index, (업종명, _, _) in enumerate(upjong_list)}
 
-        # 상태 초기화 및 확인 메시지 전송
-        context.user_data['next_command'] = None
-        updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
-        updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
-        )
-    elif next_command == 'generate_chart':
-        user_input = update.message.text
-        stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
-        context.user_data['stock_list'] = stock_list
-        context.user_data['generated_charts'] = []
-        await process_stock_list(update, context, user_id, update.message)
+            if user_input in upjong_number_map:
+                업종명 = upjong_number_map[user_input]
+            else:
+                업종명 = user_input
 
-    elif next_command == 'search_report':
-        user_input = update.message.text
-        stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
-        context.user_data['stock_list'] = stock_list
-        context.user_data['writeFromDate'] = (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d')
-        context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
-        await process_report_request(update, context, user_id, update.message)
+            if 업종명 in upjong_map:
+                등락률, 링크 = upjong_map[업종명]
+                await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
+
+                stock_info = fetch_stock_info(링크)
+                if stock_info:
+                    all_quant_data = []
+                    for 종목명, _, _, _, 종목링크 in stock_info:
+                        stock_code = 종목링크.split('=')[-1]
+                        quant_data = fetch_stock_info_quant(stock_code)
+                        if quant_data:
+                            all_quant_data.append(quant_data)
+
+                    today_date = datetime.today().strftime('%y%m%d')
+                    csv_file_name = f'{업종명}_quant_{today_date}.csv'
+                    with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
+                        writer = csv.writer(file)
+                        if all_quant_data:
+                            header = all_quant_data[0].keys()
+                            writer.writerow(header)
+                            for quant_data in all_quant_data:
+                                writer.writerow(quant_data.values())
+
+                    print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+
+                    if os.path.exists(csv_file_name):
+                        with open(csv_file_name, 'rb') as file:
+                            await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                    else:
+                        await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
+    
+    except FileNotFoundError:
+        await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
+    except IOError as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
 
 async def process_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
@@ -248,7 +292,7 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
 async def naver_upjong_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='네이버 업종퀀트를 검색합니다. \n\n검색할 업종명을 입력하세요.')
-
+    context.user_data['next_command'] = 'naver_upjong_quant'
 
 async def naver_upjong_quant_response(update: Update, context: CallbackContext) -> None:
     user_input = update.message.text
@@ -300,81 +344,18 @@ async def show_upjong_list(update: Update, context: CallbackContext) -> None:
         upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
         
         for i, (업종명, 등락률, _) in upjong_map.items():
-            upjong_message += f"{i}. {업종명} - 등락률: {등락률}\n"
+            # 이스케이프 처리
+            업종명 = 업종명.replace('.', '\\.')
+            등락률 = 등락률.replace('.', '\\.').replace('-', '\\-').replace('+', '\\+')
+            upjong_message += f"{i}\\. *{업종명}*   \\[{등락률}\\]\n"
+            # print(upjong_message)
 
-        upjong_message += "\n업종 번호 혹은 업종명(정확하게) 입력하세요."
+        upjong_message += "\n업종 번호 혹은 업종명\\(정확하게\\) 입력하세요\\."
         context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
-        await context.bot.send_message(chat_id=chat_id, text=upjong_message)
+        await context.bot.send_message(chat_id=chat_id, text=upjong_message, parse_mode='MarkdownV2')
+        context.user_data['next_command'] = 'naver_upjong_quant'
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
-
-async def handle_upjong_search(update: Update, context: CallbackContext) -> None:
-    user_input = update.message.text
-    chat_id = update.effective_chat.id
-
-    try:
-        # 업종 목록을 가져옵니다.
-        upjong_list = fetch_upjong_list()
-        
-        # 업종 정보를 매핑합니다.
-        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
-        # 업종 번호와 이름 매핑을 생성합니다.
-        upjong_number_map = {str(index + 1): 업종명 for index, (업종명, _, _) in enumerate(upjong_list)}
-
-        # 사용자가 입력한 것이 번호일 경우 업종명을 찾습니다.
-        if user_input in upjong_number_map:
-            업종명 = upjong_number_map[user_input]
-        else:
-            업종명 = user_input
-        
-        if 업종명 in upjong_map:
-            등락률, 링크 = upjong_map[업종명]
-            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
-                
-            # 종목 정보를 가져옵니다.
-            stock_info = fetch_stock_info(링크)
-            if stock_info:
-                all_quant_data = []
-                for 종목명, _, _, _, 종목링크 in stock_info:
-                    # 종목 링크에서 종목 코드를 추출
-                    stock_code = 종목링크.split('=')[-1]  # 'code=종목코드' 형식으로 링크가 제공된다고 가정
-                    quant_data = fetch_stock_info_quant(stock_code)
-                    if quant_data:
-                        all_quant_data.append(quant_data)
-                
-                # CSV 파일로 저장 (UTF-8 BOM 추가)
-                # 현재 날짜를 포함한 CSV 파일명 생성
-                today_date = datetime.today().strftime('%y%m%d')
-                csv_file_name = f'{업종명}_quant_{today_date}.csv'
-                with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
-                    writer = csv.writer(file)
-                    if all_quant_data:
-                        # CSV 파일에 헤더 추가
-                        header = all_quant_data[0].keys()
-                        writer.writerow(header)
-                        # 데이터 추가
-                        for quant_data in all_quant_data:
-                            writer.writerow(quant_data.values())
-                
-                print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
-                
-                # CSV 파일 전송
-                if os.path.exists(csv_file_name):
-                    with open(csv_file_name, 'rb') as file:
-                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
-                else:
-                    await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
-            else:
-                await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
-    
-    except FileNotFoundError:
-        await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
-    except IOError as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
 
 async def set_commands(bot):
     commands = [
@@ -404,13 +385,8 @@ def main():
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("report", report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
-
-    # 새 명령어 핸들러 추가
-    # application.add_handler(CommandHandler("naver_upjong_quant", naver_upjong_quant))  # 네이버 업종퀀트 명령어 추가
-    # 커맨드 핸들러 추가
     application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_upjong_search))  # 네이버 업종퀀트 응답 처리
 
     application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
