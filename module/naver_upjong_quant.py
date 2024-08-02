@@ -90,6 +90,10 @@ def fetch_stock_info_quant(stock_code):
     
     print(f"Fetching data from: {url}")  # Debugging message
     
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
     # HTTP 요청
     response = requests.get(url, headers=headers)
     response.encoding = 'euc-kr'
@@ -123,18 +127,39 @@ def fetch_stock_info_quant(stock_code):
     data = {'종목명': stock_name}
     
     try:
-        # 현재주가 
-        current_price = soup.select_one('#middle > dl > dd:nth-child(5)').get_text(strip=True)
-        match = re.search(r'현재가 ([\d,]+) 전일대비', current_price)
+        # 현재주가
+        current_price_tag = soup.select_one('#middle > dl > dd:nth-child(5)')
+        current_price_text = current_price_tag.get_text(strip=True) if current_price_tag else 'N/A'
 
-        # 변수 정의 및 값 추출
+        # 현재가, 전일비, 등락률 추출
+        pattern = re.compile(r'''
+            현재가\s+([\d,]+)\s+          # 현재가 (숫자와 쉼표)
+            전일대비\s+                  # 전일대비 (문자열)
+            (상승|하락)\s+                # 상승 또는 하락
+            ([\d,]+)\s+                  # 전일비 (숫자와 쉼표)
+            (플러스|마이너스)?\s*        # 플러스 또는 마이너스 (선택적)
+            ([\d.]+)\s+퍼센트            # 등락률 (숫자)
+        ''', re.VERBOSE)
+
+        match = pattern.search(current_price_text)
         if match:
-            current_price = match.group(1)  # 찾은 값
-            current_price = int(current_price.replace(',', ''))  # 쉼표 제거
-            print(f'현재가: {current_price}')
+            current_price = int(match.group(1).replace(',', ''))
+            change_amount = int(match.group(3).replace(',', ''))
+            change_percent = match.group(4)
+            if match.group(2) == '하락':
+                change_percent = '-' + match.group(5)
+                change_amount  = '-' + str(change_amount)
+            else:
+                change_percent = match.group(5)
+                change_amount  = change_amount
+            data['현재가'] = current_price
+            data['전일비'] = change_amount
+            data['등락률'] = change_percent
         else:
-            current_price = 'N/A'
-            print('현재가를 찾을 수 없습니다.')
+            data['현재가'] = 'N/A'
+            data['전일비'] = 'N/A'
+            data['등락률'] = 'N/A'
+            print('현재가, 전일비, 등락률을 찾을 수 없습니다.')
 
         # PER
         per_value = info_section.select_one('tr:nth-of-type(1) > td')
@@ -145,16 +170,13 @@ def fetch_stock_info_quant(stock_code):
             print("PER 값을 찾을 수 없습니다.")  # 로그: PER 없음
 
         # 추정PER
-        # FWD EPS와 현재 주식 가격을 이용한 FWD PER 계산
         est_eps_value = soup.select_one('#_cns_eps')
         if est_eps_value:
             est_eps_text = est_eps_value.get_text(strip=True).split('|')[0]
-            # print('est_eps_text',est_eps_text)
             try:
-                est_eps_value = float(est_eps_text.replace(',', ''))  # 쉼표 제거 및 부동 소수점으로 변환
-                if current_price > 0:  # 현재 주식 가격이 0보다 커야 나누기가 가능함
-                    # print('est_eps_value', est_eps_value)
-                    fwd_per = round(current_price/est_eps_value, 2)
+                est_eps_value = float(est_eps_text.replace(',', ''))
+                if data['현재가'] > 0:
+                    fwd_per = round(data['현재가'] / est_eps_value, 2)
                     data['fwdPER'] = fwd_per
                 else:
                     data['fwdPER'] = 'N/A'
@@ -228,13 +250,28 @@ def fetch_stock_info_quant(stock_code):
     except Exception as e:
         print(f"Error parsing data: {e}")  # 로그: 파싱 오류
 
+    # 빈 문자열을 'N/A'로 변경
     for key in data:
         if data[key] == '':
             data[key] = 'N/A'
 
-    print(data)
+    # 순서 지정된 컬럼 순서에 맞게 데이터 정렬
+    ordered_data = {
+        '종목명': data.get('종목명', 'N/A'),
+        'PER': data.get('PER', 'N/A'),
+        'fwdPER': data.get('fwdPER', 'N/A'),
+        'PBR': data.get('PBR', 'N/A'),
+        '배당수익률': data.get('배당수익률', 'N/A'),
+        '예상배당수익률': data.get('예상배당수익률', 'N/A'),
+        'ROE': data.get('ROE', 'N/A'),
+        '현재가': data.get('현재가', 'N/A'),
+        '전일비': data.get('전일비', 'N/A'),
+        '등락률': data.get('등락률', 'N/A'),
+    }
 
-    return data
+    print(ordered_data)
+
+    return ordered_data
 
 def main():
     parser = argparse.ArgumentParser(description="업종명에 따른 종목 정보를 크롤링합니다.")
