@@ -71,7 +71,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     user_input = update.message.text
     chat_id = update.effective_chat.id
     next_command = context.user_data.get('next_command')
-
+    print('next_command', next_command)
     try:
         if next_command == 'report_alert_keyword':
             # 키워드 알림 처리
@@ -292,7 +292,7 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
 async def naver_upjong_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='네이버 업종퀀트를 검색합니다. \n\n검색할 업종명을 입력하세요.')
-
+    context.user_data['next_command'] = 'naver_upjong_quant'
 
 async def naver_upjong_quant_response(update: Update, context: CallbackContext) -> None:
     user_input = update.message.text
@@ -348,11 +348,12 @@ async def show_upjong_list(update: Update, context: CallbackContext) -> None:
             업종명 = 업종명.replace('.', '\\.')
             등락률 = 등락률.replace('.', '\\.').replace('-', '\\-').replace('+', '\\+')
             upjong_message += f"{i}\\. *{업종명}*   \\[{등락률}\\]\n"
-            print(upjong_message)
+            # print(upjong_message)
 
         upjong_message += "\n업종 번호 혹은 업종명\\(정확하게\\) 입력하세요\\."
         context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
         await context.bot.send_message(chat_id=chat_id, text=upjong_message, parse_mode='MarkdownV2')
+        context.user_data['next_command'] = 'naver_upjong_quant'
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
 
