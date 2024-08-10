@@ -138,7 +138,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                             all_quant_data.append(quant_data)
 
                     today_date = datetime.today().strftime('%y%m%d')
-                    csv_file_name = f'{업종명}_quant_{today_date}.csv'
+                    csv_file_name = f'{업종명}_naver_quant_{today_date}.csv'
                     with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
                         writer = csv.writer(file)
                         if all_quant_data:
