@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 # JSON 파일 경로
 KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 
-async def chart(update: Update, context: CallbackContext) -> None:
+async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='수급오실레이터 차트 생성입니다. \n\n 종목명 혹은 종목코드를 입력하세요. \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
     context.user_data['next_command'] = 'generate_chart'
@@ -183,7 +183,7 @@ async def show_upjong_list(update: Update, context: CallbackContext) -> None:
 
 async def set_commands(bot):
     commands = [
-        BotCommand("chart", "수급오실레이터 차트"),
+        BotCommand("generate_chart", "수급오실레이터 차트"),
         BotCommand("recent", "최근 검색 종목"),
         BotCommand("search_report", "레포트 검색기"),
         BotCommand("naver_upjong_quant", "네이버 업종퀀트"),  # 새로 추가된 명령어
@@ -448,7 +448,7 @@ def main():
     recent_searches = load_recent_searches()
     application.bot_data['recent_searches'] = recent_searches
 
-    application.add_handler(CommandHandler("chart", chart))  # /chart 명령어 추가
+    application.add_handler(CommandHandler("generate_chart", generate_chart))  # /generate_chart 명령어 추가
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
