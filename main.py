@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 
 # JSON 파일 경로
 KEYWORD_FILE_PATH = 'report_alert_keyword.json'
+# Define the folder path
+CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
 
 async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -343,9 +345,24 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 else:
                     await update.message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
             
+            # Ensure the folder exists
+            if not os.path.exists(CSV_FOLDER_PATH):
+                os.makedirs(CSV_FOLDER_PATH)
+
             if all_quant_data:
+                # Define the base file name and extension
                 today_date = datetime.today().strftime('%y%m%d')
-                csv_file_name = f'stock_quant_{today_date}.csv'
+                base_file_name = f'stock_quant_{today_date}_{user_id}'
+                file_extension = '.csv'
+                counter = 0
+                csv_file_name = os.path.join(CSV_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+                # Check if the file already exists and increment the sequence number if necessary
+                while os.path.exists(csv_file_name):
+                    counter += 1
+                    csv_file_name = os.path.join(CSV_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+                # Write the CSV file
                 with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
                     writer = csv.writer(file)
                     header = all_quant_data[0].keys()
@@ -353,9 +370,10 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     for quant_data in all_quant_data:
                         writer.writerow(quant_data.values())
 
+                # Send the file to the user
                 if os.path.exists(csv_file_name):
                     with open(csv_file_name, 'rb') as file:
-                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(csv_file_name)))
                 else:
                     await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
 
@@ -384,8 +402,12 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         if quant_data:
                             all_quant_data.append(quant_data)
 
+                    # Ensure the folder exists
+                    if not os.path.exists(CSV_FOLDER_PATH):
+                        os.makedirs(CSV_FOLDER_PATH)
                     today_date = datetime.today().strftime('%y%m%d')
-                    csv_file_name = f'{업종명}_naver_quant_{today_date}.csv'
+                    csv_file_name = os.path.join(CSV_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.csv')
+                    
                     with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
                         writer = csv.writer(file)
                         if all_quant_data:
