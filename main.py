@@ -24,7 +24,6 @@ async def generate_chart(update: Update, context: CallbackContext) -> None:
     await context.bot.send_message(chat_id=chat_id, text='수급오실레이터 차트 생성입니다. \n\n 종목명 혹은 종목코드를 입력하세요. \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
     context.user_data['next_command'] = 'generate_chart'
 
-
 async def stock_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='종목 & ETF 퀀트입니다. \n\n 종목명 혹은 종목코드를 입력하세요.(ETF가능) \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
@@ -34,7 +33,6 @@ async def search_report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요.')
     context.user_data['next_command'] = 'search_report'
-
 
 async def report_alert_keyword(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -138,53 +136,6 @@ async def process_selected_stock_for_quant(update: Update, context: CallbackCont
             await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
     else:
         await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
-
-
-async def naver_upjong_quant(update: Update, context: CallbackContext) -> None:
-    chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id=chat_id, text='네이버 업종퀀트를 검색합니다. \n\n검색할 업종명을 입력하세요.')
-    context.user_data['next_command'] = 'naver_upjong_quant'
-
-async def naver_upjong_quant_response(update: Update, context: CallbackContext) -> None:
-    user_input = update.message.text
-    chat_id = update.effective_chat.id
-
-    try:
-        # 업종 목록을 가져옵니다.
-        upjong_list = fetch_upjong_list()
-        upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
-
-        if user_input in upjong_map:
-            등락률, 링크 = upjong_map[user_input]
-            await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {user_input}\n등락률: {등락률}")
-
-            # 종목 정보를 가져옵니다.
-            stock_info = fetch_stock_info(링크)
-            if stock_info:
-                # CSV 파일 생성
-                output = StringIO()
-                csv_writer = csv.writer(output)
-                
-                # CSV 파일 헤더 추가
-                csv_writer.writerow(['종목명', '현재가', '전일비', '등락률', '링크'])
-                
-                for 종목명, 현재가, 전일비, 등락률, 종목링크 in stock_info:
-                    csv_writer.writerow([종목명, 현재가, 전일비, 등락률, 종목링크])
-                
-                # CSV 파일의 내용을 문자열로 변환
-                output.seek(0)
-                csv_data = output.getvalue()
-                output.close()
-                
-                # CSV 파일 전송
-                await context.bot.send_message(chat_id=chat_id, text="업종명: {}에 대한 종목 정보".format(user_input))
-                await context.bot.send_document(chat_id=chat_id, document=InputFile(csv_data.encode('utf-8-sig'), filename=f'{user_input}_stock_info.csv'))
-            else:
-                await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"업종 정보를 처리하는 중 오류가 발생했습니다: {e}")
 
 # 업종 목록을 보여주는 함수 (인덱스 포함)
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
@@ -353,21 +304,61 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
             context.user_data['stock_list'] = stock_list
 
+            all_quant_data = []
+            print(stock_list)
             # 종목 검색
             for stock_name in stock_list:
                 results = search_stock(stock_name)
                 if results and len(results) == 1:
                     stock_name, stock_code = results[0]['name'], results[0]['code']
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    await process_selected_stock_for_quant(update, context, stock_name, stock_code)
+                    quant_data = fetch_stock_info_quant(stock_code)
+                    print(quant_data)
+                    if quant_data:
+                        all_quant_data.append(quant_data)
                 elif results and len(results) > 1:
-                    buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
-                    reply_markup = InlineKeyboardMarkup(buttons)
-                    await update.message.reply_text("검색 결과를 선택하세요:", reply_markup=reply_markup)
+                    # 사용자에게 종목 선택을 받지 않고 종목명이 일치하는 값으로 자동 치환처리
+                    select_stock = None  # 초기 값으로 None 설정
+                    for result in results:
+                        if result['name'] == stock_name:
+                            select_stock = {'name': result['name'], 'code': result['code']}
+                            break  # 조건을 만족하는 첫 번째 항목을 찾으면 루프 중단
+
+                    if select_stock:
+                        print('===>', select_stock)
+                        stock_name, stock_code = select_stock['name'], select_stock['code']
+                    else:
+                        await update.message.reply_text(f"{stock_name} 을 찾을 수 없습니다.")
+                        await update.message.reply_text(f"{results} \n 종목에서 ")
+                        await update.message.reply_text(f"{results[0]['name']}로 처리됩니다. ")
+                        stock_name, stock_code = results[0]['name'], results[0]['code']
+                    
+                    await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
+                    quant_data = fetch_stock_info_quant(stock_code)
+
+                    print(quant_data)
+                    if quant_data:
+                        all_quant_data.append(quant_data)
                     context.user_data['search_results'] = results
-                    return
                 else:
                     await update.message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
+            
+            if all_quant_data:
+                today_date = datetime.today().strftime('%y%m%d')
+                csv_file_name = f'stock_quant_{today_date}.csv'
+                with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
+                    writer = csv.writer(file)
+                    header = all_quant_data[0].keys()
+                    writer.writerow(header)
+                    for quant_data in all_quant_data:
+                        writer.writerow(quant_data.values())
+
+                if os.path.exists(csv_file_name):
+                    with open(csv_file_name, 'rb') as file:
+                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
+
         
         else:
             # 업종 검색 처리
