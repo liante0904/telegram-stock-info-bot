@@ -3,6 +3,7 @@ import csv
 import re
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd  # pandas를 추가합니다
 
 # 업종 페이지 URL (업종별 링크는 상대 경로로 제공됩니다)
 base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
@@ -316,19 +317,12 @@ def main():
                         if quant_data:
                             all_quant_data.append(quant_data)
                     
-                    # CSV 파일로 저장 (UTF-8 BOM 추가)
-                    csv_file_name = f'{args.upjong_name}_quant.csv'
-                    with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
-                        writer = csv.writer(file)
-                        if all_quant_data:
-                            # CSV 파일에 헤더 추가
-                            header = all_quant_data[0].keys()
-                            writer.writerow(header)
-                            # 데이터 추가
-                            for quant_data in all_quant_data:
-                                writer.writerow(quant_data.values())
+                    # 엑셀 파일로 저장
+                    excel_file_name = f'{args.upjong_name}_quant.xlsx'
+                    df = pd.DataFrame(all_quant_data)
+                    df.to_excel(excel_file_name, index=False, engine='openpyxl')
                     
-                    print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+                    print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
                 else:
                     print("종목 정보를 가져오는 데 문제가 발생했습니다.")
             else:
