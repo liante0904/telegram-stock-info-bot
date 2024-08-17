@@ -247,8 +247,21 @@ def fetch_stock_info_quant(stock_code):
             data['ROE'] = 'N/A'
             print("ROE 정보를 찾을 수 없습니다.")  # 로그: ROE 정보 없음
 
+        # 종목코드
+        data['url'] = url
+
+        # 네이버 주소 
+        data['stock_code'] = stock_code
+
     except Exception as e:
         print(f"Error parsing data: {e}")  # 로그: 파싱 오류
+
+    print(url)
+    # 네이버 주소 
+    data['네이버url'] = url
+    print(stock_code)
+    # 종목코드
+    data['종목코드'] = str(stock_code)
 
     # 빈 문자열을 'N/A'로 변경
     for key in data:
@@ -267,6 +280,8 @@ def fetch_stock_info_quant(stock_code):
         '현재가': data.get('현재가', 'N/A'),
         '전일비': data.get('전일비', 'N/A'),
         '등락률': data.get('등락률', 'N/A'),
+        '종목코드': data.get('종목코드', 'N/A'),
+        '네이버url': data.get('네이버url', 'N/A'),
     }
 
     print(ordered_data)
