@@ -33,6 +33,11 @@ async def stock_quant(update: Update, context: CallbackContext) -> None:
     await context.bot.send_message(chat_id=chat_id, text='종목 & ETF 퀀트입니다. \n\n 종목명 혹은 종목코드를 입력하세요.(ETF가능) \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
     context.user_data['next_command'] = 'stock_quant'
 
+async def excel_quant(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n최근 거래일 데이터로 갱신합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. ')
+    context.user_data['next_command'] = 'excel_quant'
+
 async def search_report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요.')
@@ -170,6 +175,7 @@ async def set_commands(bot):
         BotCommand("search_report", "레포트 검색기"),
         BotCommand("naver_upjong_quant", "네이버 업종퀀트"),  # 새로 추가된 명령어
         BotCommand("stock_quant", "종목 퀀트"),  # 새로 추가된 명령어
+        BotCommand("excel_quant", "엑셀 퀀트"),  # 새로 추가된 명령어
         BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")
     ]
     await bot.set_my_commands(commands)
@@ -445,6 +451,38 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
 
+# 파일 수신 및 시트별 데이터 출력
+async def handle_document(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    document = update.message.document
+    next_command = context.user_data.get('next_command')
+
+    if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        # Download the file
+        file = await document.get_file()
+        print(file)
+        file_path = os.path.join(EXCEL_FOLDER_PATH, f"{document.file_id}.xlsx")
+        await file.download_to_drive(file_path)
+
+        # Read the Excel file and print the data
+        try:
+            excel_data = pd.ExcelFile(file_path)
+            sheet_names = excel_data.sheet_names
+            response_message = "엑셀 파일의 시트별 데이터:\n"
+
+            for sheet_name in sheet_names:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                response_message += f"\n시트 이름: {sheet_name}\n"
+                response_message += df.head().to_string()  # Print the first few rows
+                response_message += "\n\n"
+
+            await context.bot.send_message(chat_id=chat_id, text=response_message)
+        except Exception as e:
+            await context.bot.send_message(chat_id=chat_id, text=f"파일을 처리하는 중 오류가 발생했습니다: {e}")
+
+        context.user_data['next_command'] = None
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
 
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
@@ -465,11 +503,16 @@ def main():
     application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
+    application.add_handler(CommandHandler("excel_quant", excel_quant))
+
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
 
 
     application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
+
+    # Add message handlers
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # asyncio 이벤트 루프에서 명령어 설정
