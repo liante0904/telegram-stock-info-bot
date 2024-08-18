@@ -40,7 +40,7 @@ def fetch_upjong_list():
     
     return data
 
-def fetch_stock_info(upjong_link):
+def fetch_stock_info_in_upjong(upjong_link):
     base_url = 'https://finance.naver.com'
     full_url = base_url + upjong_link
     print(f'Fetching stock info from: {full_url}')  # Debugging message
@@ -308,7 +308,7 @@ def main():
                 print(f"\n업종명: {args.upjong_name} - 퀀트 정보")
 
                 # 종목 정보를 가져옵니다.
-                stock_info = fetch_stock_info(링크)
+                stock_info = fetch_stock_info_in_upjong(링크)
                 if stock_info:
                     all_quant_data = []
                     for 종목명, _, _, _, 종목링크 in stock_info:
@@ -328,7 +328,7 @@ def main():
                     print("종목 정보를 가져오는 데 문제가 발생했습니다.")
             else:
                 # 종목 정보를 가져오는 경우
-                stock_info = fetch_stock_info(링크)
+                stock_info = fetch_stock_info_in_upjong(링크)
                 if stock_info:
                     print(f'\n업종명: {args.upjong_name}')
                     print(f"{'종목명':<20} {'현재가':<10} {'전일비':<10} {'등락률':<10}")
