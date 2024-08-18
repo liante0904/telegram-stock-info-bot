@@ -281,6 +281,7 @@ def fetch_stock_info_quant(stock_code):
         '현재가': data.get('현재가', 'N/A'),
         '전일비': data.get('전일비', 'N/A'),
         '등락률': data.get('등락률', 'N/A'),
+        '비고(메모)': data.get('비고(메모)', ' '),
         '종목코드': data.get('종목코드', 'N/A'),
         '네이버url': data.get('네이버url', 'N/A'),
     }
