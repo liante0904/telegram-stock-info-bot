@@ -1,12 +1,14 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
+import math
 import os
-import csv
 import pandas as pd
-from io import StringIO
 import asyncio
 import re
 import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info_in_upjong, fetch_stock_info_quant
 from module.stock_search import search_stock
@@ -32,6 +34,11 @@ async def stock_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='종목 & ETF 퀀트입니다. \n\n 종목명 혹은 종목코드를 입력하세요.(ETF가능) \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
     context.user_data['next_command'] = 'stock_quant'
+
+async def excel_quant(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n*최근 거래일 데이터로 갱신*합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. \n*파일 전송시 caption값을 넣으면 파일명*을 바꿔 보내줍니다.', parse_mode='Markdown')
+    context.user_data['next_command'] = 'excel_quant'
 
 async def search_report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -113,7 +120,6 @@ async def select_stock(update: Update, context: CallbackContext) -> None:
                 await process_selected_stock_for_report(update, context, stock_name, stock_code)
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
-import pandas as pd
 
 async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     chat_id = update.effective_chat.id
@@ -170,6 +176,7 @@ async def set_commands(bot):
         BotCommand("search_report", "레포트 검색기"),
         BotCommand("naver_upjong_quant", "네이버 업종퀀트"),  # 새로 추가된 명령어
         BotCommand("stock_quant", "종목 퀀트"),  # 새로 추가된 명령어
+        BotCommand("excel_quant", "엑셀 퀀트"),  # 새로 추가된 명령어
         BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")
     ]
     await bot.set_my_commands(commands)
@@ -446,6 +453,143 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
 
 
+# 파일 수신 및 시트별 데이터 출력
+async def handle_document(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    document = update.message.document
+    caption = update.message.caption
+    next_command = context.user_data.get('next_command')
+
+    if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        # 폴더가 존재하지 않으면 생성
+        if not os.path.exists(EXCEL_FOLDER_PATH):
+            os.makedirs(EXCEL_FOLDER_PATH)
+        # Download the file
+        file = await document.get_file()
+        file_path = os.path.join(EXCEL_FOLDER_PATH, f"{chat_id}_{document.file_id}.xlsx")
+        await file.download_to_drive(file_path)
+
+        # Read the Excel file and process the data
+        try:
+            excel_data = pd.ExcelFile(file_path)
+            sheet_names = excel_data.sheet_names
+            response_message = "엑셀 파일의 시트별 데이터:\n"
+            update_message = ""
+
+            # Define the base file name and extension
+            today_date = datetime.today().strftime('%y%m%d')
+            counter = 0
+            updated_file_name = ''
+
+            # 파일 이름 결정
+            if caption: pass
+                # updated_file_name = f'{caption}_{chat_id}_{today_date}_{counter}.xlsx'
+            else: caption = 'excel_quant'
+                # updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
+
+            # Check if the file already exists and increment the sequence number if necessary
+            while os.path.exists(os.path.join(EXCEL_FOLDER_PATH, f'{caption}_{chat_id}_{today_date}_{counter}.xlsx')):
+                counter += 1
+
+            updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{caption}_{chat_id}_{today_date}_{counter}.xlsx')
+
+            # 최초 메시지 전송
+            message = await context.bot.send_message(chat_id=chat_id, text="처리 중...")
+
+            with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
+                for sheet_name in sheet_names:
+                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    update_message += f"============\n시트 이름: {sheet_name}\n"
+
+                    # 첫 번째 행은 타이틀로 간주, 두 번째 행부터 처리
+                    for index, row in df.iterrows():
+                        naver_url = row.get('네이버url')
+                        stock_code = row.get('종목코드')
+                        stock_name = row.get('종목명')
+                        memo = row.get('비고(메모)')
+
+                        # 빈 값 처리 (NaN 또는 None)
+                        if naver_url is None or (isinstance(naver_url, float) and math.isnan(naver_url)):
+                            naver_url = ''
+                        if stock_code is None or (isinstance(stock_code, float) and math.isnan(stock_code)):
+                            stock_code = ''
+                        if stock_name is None or (isinstance(stock_name, float) and math.isnan(stock_name)):
+                            stock_name = ''
+                        if memo is None or (isinstance(memo, float) and math.isnan(memo)):
+                            memo = ''
+                        
+                        # 사용자에게 각 종목에 대해 메시지 작성
+                        update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
+
+                        # 메시지 수정
+                        await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
+
+                        if naver_url:
+                            stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
+
+                        # 퀀트 데이터 가져오기
+                        if stock_code:
+                            stock_info = search_stock(stock_code)
+                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
+                        elif stock_name:
+                            stock_info = search_stock(stock_name)
+                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
+                        else:
+                            quant_data = None
+
+                        # 원본 데이터프레임에 업데이트된 값 반영
+                        if quant_data:
+                            for key, value in quant_data.items():
+                                if key == '비고(메모)': value = memo
+                                df.at[index, key] = value
+
+                    # 갱신된 시트를 새로운 엑셀 파일에 저장
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            # 필터 기능 추가 및 하이퍼링크 처리
+            wb = load_workbook(updated_file_name)
+            for sheet_name in sheet_names:
+                ws = wb[sheet_name]
+                
+                # 필터 범위 지정
+                start_row, start_col = 1, 1
+                end_row, end_col = df.shape[0] + 1, df.shape[1]
+                cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
+                ws.auto_filter.ref = cell_range  # 필터 범위 지정
+
+                # '네이버url' 열의 하이퍼링크 처리
+                for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=1, max_col=end_col):
+                    for cell in row:
+                        if cell.value and '네이버url' in df.columns and cell.column == df.columns.get_loc('네이버url') + 1:
+                            cell.hyperlink = cell.value
+                            cell.font = Font(color="0000FF", underline="single")
+
+            # 엑셀 파일 저장
+            wb.save(updated_file_name)
+            wb.close()
+
+            # 모든 작업이 완료된 후, 최종 메시지 수정
+            response_message += update_message + "\n엑셀 데이터 전송 완료"
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=response_message)
+
+            # 파일 전송
+            with open(updated_file_name, 'rb') as file:
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=updated_file_name))
+
+        except Exception as e:
+            await context.bot.send_message(chat_id=chat_id, text=f"파일을 처리하는 중 오류가 발생했습니다: {e}")
+
+        context.user_data['next_command'] = None
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
+
+
+# 엑셀 셀 주소 변환 함수
+def number_to_coordinate(rc):
+    row_idx, col_idx = rc[0], rc[1]
+    col_string = get_column_letter(col_idx)
+    return f'{col_string}{row_idx}'
+
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -465,11 +609,16 @@ def main():
     application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
+    application.add_handler(CommandHandler("excel_quant", excel_quant))
+
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
 
 
     application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
+
+    # Add message handlers
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # asyncio 이벤트 루프에서 명령어 설정
