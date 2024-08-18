@@ -452,7 +452,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
 
 # 파일 수신 및 시트별 데이터 출력
-# 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     document = update.message.document
@@ -471,21 +470,25 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             response_message = "엑셀 파일의 시트별 데이터:\n"
             update_message = ""
 
-            # 새 엑셀 파일을 위한 writer 준비
+            # Define the base file name and extension
             today_date = datetime.today().strftime('%y%m%d')
-            updated_file_name = f'updated_{today_date}.xlsx'
+            counter = 0
+            updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
+
+            # Check if the file already exists and increment the sequence number if necessary
+            while os.path.exists(updated_file_name):
+                counter += 1
+                updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx')
+
             with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
                 for sheet_name in sheet_names:
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
                     update_message += f"\n시트 이름: {sheet_name}\n"
 
-                    await context.bot.send_message(chat_id=chat_id, text=f"\n시트 이름: {sheet_name}\n")
+                    await context.bot.send_message(chat_id=chat_id, text=f"============\n시트 이름: {sheet_name}\n")
                     
                     # 첫 번째 행은 타이틀로 간주, 두 번째 행부터 처리
                     for index, row in df.iterrows():
-                        if index == 0:
-                            continue
-
                         naver_url = row.get('네이버url', '')
                         stock_code = row.get('종목코드', '')
                         stock_name = row.get('종목명', '')
