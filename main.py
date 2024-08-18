@@ -118,7 +118,6 @@ async def select_stock(update: Update, context: CallbackContext) -> None:
                 await process_selected_stock_for_report(update, context, stock_name, stock_code)
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
-import pandas as pd
 
 async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     chat_id = update.effective_chat.id
@@ -451,6 +450,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
 
+
+# 파일 수신 및 시트별 데이터 출력
 # 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -460,29 +461,77 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
     if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
         # Download the file
         file = await document.get_file()
-        print(file)
         file_path = os.path.join(EXCEL_FOLDER_PATH, f"{document.file_id}.xlsx")
         await file.download_to_drive(file_path)
 
-        # Read the Excel file and print the data
+        # Read the Excel file and process the data
         try:
             excel_data = pd.ExcelFile(file_path)
             sheet_names = excel_data.sheet_names
             response_message = "엑셀 파일의 시트별 데이터:\n"
+            update_message = ""
 
-            for sheet_name in sheet_names:
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
-                response_message += f"\n시트 이름: {sheet_name}\n"
-                response_message += df.head().to_string()  # Print the first few rows
-                response_message += "\n\n"
+            # 새 엑셀 파일을 위한 writer 준비
+            today_date = datetime.today().strftime('%y%m%d')
+            updated_file_name = f'updated_{today_date}.xlsx'
+            with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
+                for sheet_name in sheet_names:
+                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    update_message += f"\n시트 이름: {sheet_name}\n"
 
-            await context.bot.send_message(chat_id=chat_id, text=response_message)
+                    await context.bot.send_message(chat_id=chat_id, text=f"\n시트 이름: {sheet_name}\n")
+                    
+                    # 첫 번째 행은 타이틀로 간주, 두 번째 행부터 처리
+                    for index, row in df.iterrows():
+                        if index == 0:
+                            continue
+
+                        naver_url = row.get('네이버url', '')
+                        stock_code = row.get('종목코드', '')
+                        stock_name = row.get('종목명', '')
+
+                        # 사용자에게 각 종목에 대해 메시지 작성
+                        update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
+
+                        await context.bot.send_message(chat_id=chat_id, text=f"{stock_name} 퀀트 데이터 갱신 중..\n")
+
+                        if naver_url:
+                            stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
+
+                        # 퀀트 데이터 가져오기
+                        if stock_code:
+                            quant_data = fetch_stock_info_quant(stock_code)
+                        elif stock_name:
+                            quant_data = fetch_stock_info_quant(stock_name)
+                        else:
+                            quant_data = None
+
+                        # 원본 데이터프레임에 업데이트된 값 반영
+                        if quant_data:
+                            for key, value in quant_data.items():
+                                df.at[index, key] = value
+
+                    # 갱신된 시트를 새로운 엑셀 파일에 저장
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            print(f'업데이트된 파일이 {updated_file_name} 파일에 저장되었습니다.')
+
+            # 모든 작업이 완료된 후, 사용자에게 메시지와 함께 결과 파일 전송
+            response_message += update_message + "\n엑셀 데이터 전송 완료"
+            # await context.bot.send_message(chat_id=chat_id, text=response_message)
+
+            with open(updated_file_name, 'rb') as file:
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=updated_file_name))
+            
+            await context.bot.send_message(chat_id=chat_id, text="\n엑셀 데이터 전송 완료")
+
         except Exception as e:
             await context.bot.send_message(chat_id=chat_id, text=f"파일을 처리하는 중 오류가 발생했습니다: {e}")
 
         context.user_data['next_command'] = None
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
+
 
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
