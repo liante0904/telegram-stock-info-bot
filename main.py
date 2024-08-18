@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotComm
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 import os
 import csv
+import pandas as pd
 from io import StringIO
 import asyncio
 import re
@@ -20,6 +21,7 @@ from datetime import datetime, timedelta
 KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 # Define the folder path
 CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
+EXCEL_FOLDER_PATH = 'excel/'  # Adjust this to your actual folder path if needed
 
 async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -111,6 +113,7 @@ async def select_stock(update: Update, context: CallbackContext) -> None:
                 await process_selected_stock_for_report(update, context, stock_name, stock_code)
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
+import pandas as pd
 
 async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     chat_id = update.effective_chat.id
@@ -122,22 +125,21 @@ async def process_selected_stock_for_quant(update: Update, context: CallbackCont
         all_quant_data.append(quant_data)
 
     today_date = datetime.today().strftime('%y%m%d')
-    csv_file_name = f'{stock_name}_naver_quant_{today_date}.csv'
-    with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
-        writer = csv.writer(file)
-        if all_quant_data:
-            header = all_quant_data[0].keys()
-            writer.writerow(header)
-            for quant_data in all_quant_data:
-                writer.writerow(quant_data.values())
+    excel_file_name = f'{stock_name}_naver_quant_{today_date}.xlsx'
+    
+    # Convert list of dictionaries to DataFrame
+    if all_quant_data:
+        df = pd.DataFrame(all_quant_data)
+        df.to_excel(excel_file_name, index=False, engine='openpyxl')
+        print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
 
-    print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
-
-    if os.path.exists(csv_file_name):
-        with open(csv_file_name, 'rb') as file:
-            await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+        if os.path.exists(excel_file_name):
+            with open(excel_file_name, 'rb') as file:
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=excel_file_name))
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
     else:
-        await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
+        await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
 
 # 업종 목록을 보여주는 함수 (인덱스 포함)
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
@@ -218,26 +220,17 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
 
 async def process_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
-
+    chat_id = user_id
+    all_quant_data = []
     for stock_name in stock_list:
         results = search_stock(stock_name)
         if results and len(results) == 1:
             stock_name, stock_code = results[0]['name'], results[0]['code']
-            await message.reply_text(f"{stock_name}({stock_code}) 차트를 생성 중...")
+            await message.reply_text(f"{stock_name}({stock_code}) 퀀트 파일 생성 중...")
 
-            # 최근 검색 종목에 추가 (중복 방지)
-            if user_id not in context.bot_data['recent_searches']:
-                context.bot_data['recent_searches'][user_id] = []
-            if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
-                context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
-            save_recent_searches(context.bot_data['recent_searches'])
-
-            chart_filename = draw_chart(stock_code, stock_name)
-            if os.path.exists(chart_filename):
-                context.user_data['generated_charts'].append(chart_filename)
-            else:
-                await message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
-
+            quant_data = fetch_stock_info_quant(stock_code)
+            if quant_data:
+                all_quant_data.append(quant_data)
         elif results and len(results) > 1:
             buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
             reply_markup = InlineKeyboardMarkup(buttons)
@@ -248,13 +241,38 @@ async def process_stock_list(update: Update, context: CallbackContext, user_id: 
         else:
             await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
 
-    # 미디어 그룹을 한 번만 전송
-    await generate_and_send_charts_from_files(context, update.effective_chat.id, context.user_data['generated_charts'])
+    # Ensure the folder exists
+    if not os.path.exists(EXCEL_FOLDER_PATH):
+        os.makedirs(EXCEL_FOLDER_PATH)
 
-    # 모든 차트 생성 후 상태 재설정
+    if all_quant_data:
+        # Define the base file name and extension
+        today_date = datetime.today().strftime('%y%m%d')
+        base_file_name = f'stock_quant_{today_date}_{user_id}'
+        file_extension = '.xlsx'
+        counter = 0
+        excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+        # Check if the file already exists and increment the sequence number if necessary
+        while os.path.exists(excel_file_name):
+            counter += 1
+            excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+        # Write the Excel file
+        df = pd.DataFrame(all_quant_data)
+        df.to_excel(excel_file_name, index=False, engine='openpyxl')
+
+        # Send the file to the user
+        if os.path.exists(excel_file_name):
+            with open(excel_file_name, 'rb') as file:
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
+
+    # Reset the state
     context.user_data['next_command'] = None
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
-    context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
+    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 퀀트 파일을 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
+    context.user_data['next_command'] = 'stock_quant'
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -302,6 +320,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             context.user_data['writeFromDate'] = (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d')
             context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
             await process_report_request(update, context, user_id, update.message)
+            
         elif next_command == 'stock_quant':
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
             context.user_data['stock_list'] = stock_list
@@ -346,37 +365,32 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     await update.message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
             
             # Ensure the folder exists
-            if not os.path.exists(CSV_FOLDER_PATH):
-                os.makedirs(CSV_FOLDER_PATH)
+            if not os.path.exists(EXCEL_FOLDER_PATH):
+                os.makedirs(EXCEL_FOLDER_PATH)
 
             if all_quant_data:
                 # Define the base file name and extension
                 today_date = datetime.today().strftime('%y%m%d')
                 base_file_name = f'stock_quant_{today_date}_{user_id}'
-                file_extension = '.csv'
+                file_extension = '.xlsx'
                 counter = 0
-                csv_file_name = os.path.join(CSV_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+                excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
 
                 # Check if the file already exists and increment the sequence number if necessary
-                while os.path.exists(csv_file_name):
+                while os.path.exists(excel_file_name):
                     counter += 1
-                    csv_file_name = os.path.join(CSV_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+                    excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
 
-                # Write the CSV file
-                with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
-                    writer = csv.writer(file)
-                    header = all_quant_data[0].keys()
-                    writer.writerow(header)
-                    for quant_data in all_quant_data:
-                        writer.writerow(quant_data.values())
+                # Create a DataFrame and save to Excel
+                df = pd.DataFrame(all_quant_data)
+                df.to_excel(excel_file_name, index=False, engine='openpyxl')
 
                 # Send the file to the user
-                if os.path.exists(csv_file_name):
-                    with open(csv_file_name, 'rb') as file:
-                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(csv_file_name)))
+                if os.path.exists(excel_file_name):
+                    with open(excel_file_name, 'rb') as file:
+                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
                 else:
-                    await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
-
+                    await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
         
         else:
             # 업종 검색 처리
@@ -403,26 +417,22 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                             all_quant_data.append(quant_data)
 
                     # Ensure the folder exists
-                    if not os.path.exists(CSV_FOLDER_PATH):
-                        os.makedirs(CSV_FOLDER_PATH)
+                    if not os.path.exists(EXCEL_FOLDER_PATH):
+                        os.makedirs(EXCEL_FOLDER_PATH)
                     today_date = datetime.today().strftime('%y%m%d')
-                    csv_file_name = os.path.join(CSV_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.csv')
+                    excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.xlsx')
                     
-                    with open(csv_file_name, mode='w', newline='', encoding='utf-8-sig') as file:
-                        writer = csv.writer(file)
-                        if all_quant_data:
-                            header = all_quant_data[0].keys()
-                            writer.writerow(header)
-                            for quant_data in all_quant_data:
-                                writer.writerow(quant_data.values())
+                    # Create a DataFrame and save to Excel
+                    df = pd.DataFrame(all_quant_data)
+                    df.to_excel(excel_file_name, index=False, engine='openpyxl')
 
-                    print(f'퀀트 정보가 {csv_file_name} 파일에 저장되었습니다.')
+                    print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
 
-                    if os.path.exists(csv_file_name):
-                        with open(csv_file_name, 'rb') as file:
-                            await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=csv_file_name))
+                    if os.path.exists(excel_file_name):
+                        with open(excel_file_name, 'rb') as file:
+                            await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
                     else:
-                        await context.bot.send_message(chat_id=chat_id, text="CSV 파일을 생성하는 데 문제가 발생했습니다.")
+                        await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
                 else:
                     await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
             else:
@@ -434,6 +444,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
+
 
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
