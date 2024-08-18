@@ -492,7 +492,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         naver_url = row.get('네이버url', '')
                         stock_code = row.get('종목코드', '')
                         stock_name = row.get('종목명', '')
-
+                        memo = row.get('비고(메모)', '')
                         # 사용자에게 각 종목에 대해 메시지 작성
                         update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
 
@@ -512,6 +512,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         # 원본 데이터프레임에 업데이트된 값 반영
                         if quant_data:
                             for key, value in quant_data.items():
+                                if key == '비고(메모)': value = memo
                                 df.at[index, key] = value
 
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
