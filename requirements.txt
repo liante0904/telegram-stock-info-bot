@@ -7,6 +7,7 @@ contourpy==1.1.1
 cycler==0.12.1
 DateTime==5.5
 Deprecated==1.2.14
+et-xmlfile==1.1.0
 exceptiongroup==1.2.1
 fonttools==4.53.0
 h11==0.14.0
@@ -16,12 +17,12 @@ idna==3.7
 kiwisolver==1.4.5
 matplotlib==3.7.5
 multipledispatch==1.0.0
-numpy>=1.16,<2.0
+numpy==1.24.4
+openpyxl==3.1.5
 packaging==24.1
-pandas==2.0.3  # 호환 가능한 최신 버전으로 변경
+pandas==2.0.3
 pillow==10.3.0
 pykrx==1.0.48
-# git+https://github.com/liante0904/pykrx.git@main#egg=pykrx
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
