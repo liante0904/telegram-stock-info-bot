@@ -8,7 +8,7 @@ import asyncio
 import re
 import json
 from dotenv import load_dotenv
-from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info, fetch_stock_info_quant
+from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info_in_upjong, fetch_stock_info_quant
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
@@ -407,7 +407,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 등락률, 링크 = upjong_map[업종명]
                 await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
 
-                stock_info = fetch_stock_info(링크)
+                stock_info = fetch_stock_info_in_upjong(링크)
                 if stock_info:
                     all_quant_data = []
                     for 종목명, _, _, _, 종목링크 in stock_info:
