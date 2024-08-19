@@ -428,12 +428,37 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         os.makedirs(EXCEL_FOLDER_PATH)
                     today_date = datetime.today().strftime('%y%m%d')
                     excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.xlsx')
-                    
-                    # Create a DataFrame and save to Excel
+
+                    # Create a DataFrame and save to Excel with the sheet name as 업종명
                     df = pd.DataFrame(all_quant_data)
-                    df.to_excel(excel_file_name, index=False, engine='openpyxl')
+                    with pd.ExcelWriter(excel_file_name, engine='openpyxl') as writer:
+                        df.to_excel(writer, sheet_name=업종명, index=False)
+
+                    # 필터 기능 추가 및 하이퍼링크 처리
+                    wb = load_workbook(excel_file_name)
+                    ws = wb[업종명]
+                        
+                    # 필터 범위 지정
+                    start_row, start_col = 1, 1
+                    end_row, end_col = df.shape[0] + 1, df.shape[1]
+                    cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
+                    ws.auto_filter.ref = cell_range  # 필터 범위 지정
+
+                    # '네이버url' 열의 하이퍼링크 처리
+                    if '네이버url' in df.columns:
+                        nav_url_col_index = df.columns.get_loc('네이버url') + 1  # 1-based index
+                        for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=nav_url_col_index, max_col=nav_url_col_index):
+                            for cell in row:
+                                if cell.value:
+                                    cell.hyperlink = cell.value
+                                    cell.font = Font(color="0000FF", underline="single")
+
+                    # 엑셀 파일 저장
+                    wb.save(excel_file_name)
+                    wb.close()
 
                     print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
+
 
                     if os.path.exists(excel_file_name):
                         with open(excel_file_name, 'rb') as file:
