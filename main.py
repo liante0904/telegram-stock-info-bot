@@ -479,17 +479,19 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             # Define the base file name and extension
             today_date = datetime.today().strftime('%y%m%d')
             counter = 0
+            updated_file_name = ''
             
             # 파일 이름 결정
-            if caption:
-                updated_file_name = f'{caption}_{chat_id}_{today_date}_{counter}.xlsx'
-            else:
-                updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
+            if caption: pass
+                # updated_file_name = f'{caption}_{chat_id}_{today_date}_{counter}.xlsx'
+            else: caption = 'excel_quant'
+                # updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
 
             # Check if the file already exists and increment the sequence number if necessary
-            while os.path.exists(updated_file_name):
+            while os.path.exists(os.path.join(EXCEL_FOLDER_PATH, f'{caption}_{chat_id}_{today_date}_{counter}.xlsx')):
                 counter += 1
-                updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx')
+
+            updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{caption}_{chat_id}_{today_date}_{counter}.xlsx')
 
             # 최초 메시지 전송
             message = await context.bot.send_message(chat_id=chat_id, text="처리 중...")
