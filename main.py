@@ -8,6 +8,7 @@ import re
 import json
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info_in_upjong, fetch_stock_info_quant
 from module.stock_search import search_stock
@@ -490,13 +491,14 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                 counter += 1
                 updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx')
 
+            # 최초 메시지 전송
+            message = await context.bot.send_message(chat_id=chat_id, text="처리 중...")
+
             with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
                 for sheet_name in sheet_names:
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
-                    update_message += f"\n시트 이름: {sheet_name}\n"
+                    update_message += f"============\n시트 이름: {sheet_name}\n"
 
-                    await context.bot.send_message(chat_id=chat_id, text=f"============\n시트 이름: {sheet_name}\n")
-                    
                     # 첫 번째 행은 타이틀로 간주, 두 번째 행부터 처리
                     for index, row in df.iterrows():
                         naver_url = row.get('네이버url')
@@ -517,7 +519,8 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         # 사용자에게 각 종목에 대해 메시지 작성
                         update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
 
-                        await context.bot.send_message(chat_id=chat_id, text=f"{stock_name} 퀀트 데이터 갱신 중..\n")
+                        # 메시지 수정
+                        await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
 
                         if naver_url:
                             stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
@@ -541,7 +544,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-            # 필터 기능 추가
+            # 필터 기능 추가 및 하이퍼링크 처리
             wb = load_workbook(updated_file_name)
             for sheet_name in sheet_names:
                 ws = wb[sheet_name]
@@ -549,28 +552,27 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                 # 필터 범위 지정
                 start_row, start_col = 1, 1
                 end_row, end_col = df.shape[0] + 1, df.shape[1]
-                cell_range = f'{number_to_coordinate((start_row, start_col))}:{number_to_coordinate((end_row, end_col))}'
-                
-                # print(cell_range)  # 디버깅용 출력
-                
+                cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
                 ws.auto_filter.ref = cell_range  # 필터 범위 지정
-                # 추가적으로 필요하다면 특정 열에 필터 추가 가능
-                # 예: ws.auto_filter.add_filter_column(0, [])  # 첫 번째 열에 필터 추가
+
+                # '네이버url' 열의 하이퍼링크 처리
+                for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=1, max_col=end_col):
+                    for cell in row:
+                        if cell.value and '네이버url' in df.columns and cell.column == df.columns.get_loc('네이버url') + 1:
+                            cell.hyperlink = cell.value
+                            cell.font = Font(color="0000FF", underline="single")
 
             # 엑셀 파일 저장
             wb.save(updated_file_name)
             wb.close()
 
-            print(f'업데이트된 파일이 {updated_file_name} 파일에 저장되었습니다.')
-
-            # 모든 작업이 완료된 후, 사용자에게 메시지와 함께 결과 파일 전송
+            # 모든 작업이 완료된 후, 최종 메시지 수정
             response_message += update_message + "\n엑셀 데이터 전송 완료"
-            # await context.bot.send_message(chat_id=chat_id, text=response_message)
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=response_message)
 
+            # 파일 전송
             with open(updated_file_name, 'rb') as file:
                 await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=updated_file_name))
-            
-            await context.bot.send_message(chat_id=chat_id, text="\n엑셀 데이터 전송 완료")
 
         except Exception as e:
             await context.bot.send_message(chat_id=chat_id, text=f"파일을 처리하는 중 오류가 발생했습니다: {e}")
@@ -578,6 +580,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         context.user_data['next_command'] = None
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
+
 
 # 엑셀 셀 주소 변환 함수
 def number_to_coordinate(rc):
