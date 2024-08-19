@@ -37,7 +37,7 @@ async def stock_quant(update: Update, context: CallbackContext) -> None:
 
 async def excel_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n최근 거래일 데이터로 갱신합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. \n파일 전송시 caption값을 넣으면 파일명을 바꿔 보내줍니다.')
+    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n*최근 거래일 데이터로 갱신*합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. \n*파일 전송시 caption값을 넣으면 파일명*을 바꿔 보내줍니다.', parse_mode='Markdown')
     context.user_data['next_command'] = 'excel_quant'
 
 async def search_report(update: Update, context: CallbackContext) -> None:
