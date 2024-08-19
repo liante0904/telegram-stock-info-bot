@@ -6,6 +6,8 @@ import pandas as pd
 import asyncio
 import re
 import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info_in_upjong, fetch_stock_info_quant
 from module.stock_search import search_stock
@@ -539,6 +541,26 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
+            # 필터 기능 추가
+            wb = load_workbook(updated_file_name)
+            for sheet_name in sheet_names:
+                ws = wb[sheet_name]
+                
+                # 필터 범위 지정
+                start_row, start_col = 1, 1
+                end_row, end_col = df.shape[0] + 1, df.shape[1]
+                cell_range = f'{number_to_coordinate((start_row, start_col))}:{number_to_coordinate((end_row, end_col))}'
+                
+                # print(cell_range)  # 디버깅용 출력
+                
+                ws.auto_filter.ref = cell_range  # 필터 범위 지정
+                # 추가적으로 필요하다면 특정 열에 필터 추가 가능
+                # 예: ws.auto_filter.add_filter_column(0, [])  # 첫 번째 열에 필터 추가
+
+            # 엑셀 파일 저장
+            wb.save(updated_file_name)
+            wb.close()
+
             print(f'업데이트된 파일이 {updated_file_name} 파일에 저장되었습니다.')
 
             # 모든 작업이 완료된 후, 사용자에게 메시지와 함께 결과 파일 전송
@@ -557,6 +579,11 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
 
+# 엑셀 셀 주소 변환 함수
+def number_to_coordinate(rc):
+    row_idx, col_idx = rc[0], rc[1]
+    col_string = get_column_letter(col_idx)
+    return f'{col_string}{row_idx}'
 
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
