@@ -34,7 +34,7 @@ async def stock_quant(update: Update, context: CallbackContext) -> None:
 
 async def excel_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n최근 거래일 데이터로 갱신합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. ')
+    await context.bot.send_message(chat_id=chat_id, text='엑셀 퀀트입니다. \n\n업종, 종목 퀀트 엑셀 파일을 보내면 \n최근 거래일 데이터로 갱신합니다. \n"네이버url, 종목코드, 종목명" 중 하나를 기준으로 합니다. \n파일 전송시 caption값을 넣으면 파일명을 바꿔 보내줍니다.')
     context.user_data['next_command'] = 'excel_quant'
 
 async def search_report(update: Update, context: CallbackContext) -> None:
@@ -454,6 +454,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     document = update.message.document
+    caption = update.message.caption
     next_command = context.user_data.get('next_command')
 
     if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
@@ -475,7 +476,12 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             # Define the base file name and extension
             today_date = datetime.today().strftime('%y%m%d')
             counter = 0
-            updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
+            
+            # 파일 이름 결정
+            if caption:
+                updated_file_name = f'{caption}_{chat_id}_{today_date}_{counter}.xlsx'
+            else:
+                updated_file_name = f'excel_quant_{chat_id}_{today_date}_{counter}.xlsx'
 
             # Check if the file already exists and increment the sequence number if necessary
             while os.path.exists(updated_file_name):
