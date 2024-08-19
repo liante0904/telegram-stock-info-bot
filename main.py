@@ -1,5 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
+import time
 import math
 import os
 import pandas as pd
@@ -545,9 +546,11 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         
                         # 사용자에게 각 종목에 대해 메시지 작성
                         update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
-
+                        # 메시지 발송 제한
+                        # await time.sleep(1)
                         # 메시지 수정
-                        await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
+                        await context.bot.send_message(chat_id=chat_id, message_id=message.message_id, text=update_message)
+                        # await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
 
                         if naver_url:
                             stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
@@ -592,10 +595,12 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             # 엑셀 파일 저장
             wb.save(updated_file_name)
             wb.close()
-
+            # 메시지 발송 제한
+            # await time.sleep(1)
             # 모든 작업이 완료된 후, 최종 메시지 수정
             response_message += update_message + "\n엑셀 데이터 전송 완료"
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=response_message)
+            await context.bot.send_message(chat_id=chat_id, text=response_message)
+            # await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=response_message)
 
             # 파일 전송
             with open(updated_file_name, 'rb') as file:
