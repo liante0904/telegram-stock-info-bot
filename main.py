@@ -1,9 +1,8 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
+import math
 import os
-import csv
 import pandas as pd
-from io import StringIO
 import asyncio
 import re
 import json
@@ -458,6 +457,9 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
     next_command = context.user_data.get('next_command')
 
     if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        # 폴더가 존재하지 않으면 생성
+        if not os.path.exists(EXCEL_FOLDER_PATH):
+            os.makedirs(EXCEL_FOLDER_PATH)
         # Download the file
         file = await document.get_file()
         file_path = os.path.join(EXCEL_FOLDER_PATH, f"{document.file_id}.xlsx")
@@ -489,10 +491,21 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     
                     # 첫 번째 행은 타이틀로 간주, 두 번째 행부터 처리
                     for index, row in df.iterrows():
-                        naver_url = row.get('네이버url', '')
-                        stock_code = row.get('종목코드', '')
-                        stock_name = row.get('종목명', '')
-                        memo = row.get('비고(메모)', '')
+                        naver_url = row.get('네이버url')
+                        stock_code = row.get('종목코드')
+                        stock_name = row.get('종목명')
+                        memo = row.get('비고(메모)')
+
+                        # 빈 값 처리 (NaN 또는 None)
+                        if naver_url is None or (isinstance(naver_url, float) and math.isnan(naver_url)):
+                            naver_url = ''
+                        if stock_code is None or (isinstance(stock_code, float) and math.isnan(stock_code)):
+                            stock_code = ''
+                        if stock_name is None or (isinstance(stock_name, float) and math.isnan(stock_name)):
+                            stock_name = ''
+                        if memo is None or (isinstance(memo, float) and math.isnan(memo)):
+                            memo = ''
+                        
                         # 사용자에게 각 종목에 대해 메시지 작성
                         update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
 
@@ -503,9 +516,11 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         # 퀀트 데이터 가져오기
                         if stock_code:
-                            quant_data = fetch_stock_info_quant(stock_code)
+                            stock_info = search_stock(stock_code)
+                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
                         elif stock_name:
-                            quant_data = fetch_stock_info_quant(stock_name)
+                            stock_info = search_stock(stock_name)
+                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
                         else:
                             quant_data = None
 
