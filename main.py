@@ -466,7 +466,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             os.makedirs(EXCEL_FOLDER_PATH)
         # Download the file
         file = await document.get_file()
-        file_path = os.path.join(EXCEL_FOLDER_PATH, f"{document.file_id}.xlsx")
+        file_path = os.path.join(EXCEL_FOLDER_PATH, f"{chat_id}_{document.file_id}.xlsx")
         await file.download_to_drive(file_path)
 
         # Read the Excel file and process the data
@@ -480,7 +480,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             today_date = datetime.today().strftime('%y%m%d')
             counter = 0
             updated_file_name = ''
-            
+
             # 파일 이름 결정
             if caption: pass
                 # updated_file_name = f'{caption}_{chat_id}_{today_date}_{counter}.xlsx'
