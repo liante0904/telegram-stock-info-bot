@@ -109,9 +109,9 @@ def fetch_stock_info_quant(stock_code):
     soup = BeautifulSoup(response.text, 'html.parser')
 
     # 종목명 추출
-    stock_name_tag = soup.find('div', {'class': 'wrap_company'}).find('h2')
+    stock_name_tag = soup.select_one('#middle > dl > dd:nth-child(3)')
     if stock_name_tag:
-        stock_name = stock_name_tag.get_text(strip=True).split(' ')[0]  # 종목명만 추출
+        stock_name = stock_name_tag.get_text(strip=True).split('종목명 ')[1]  # 종목명만 추출
     else:
         stock_name = 'N/A'
         print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
