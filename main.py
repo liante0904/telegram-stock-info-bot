@@ -478,20 +478,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
 
-
-import asyncio
-from queue import Queue
-
-# 비동기 메시지 수정 작업을 처리하는 함수
-async def process_message_updates(queue: Queue, context, chat_id, message_id):
-    while not queue.empty():
-        update_message = queue.get_nowait()
-        try:
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=update_message)
-            await asyncio.sleep(1.5)  # 메시지 수정 간에 1초 대기
-        except Exception as e:
-            print(f"메시지 수정 중 오류 발생: {e}")
-
 # 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
