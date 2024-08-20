@@ -478,20 +478,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
 
-
-import asyncio
-from queue import Queue
-
-# 비동기 메시지 수정 작업을 처리하는 함수
-async def process_message_updates(queue: Queue, context, chat_id, message_id):
-    while not queue.empty():
-        update_message = queue.get_nowait()
-        try:
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=update_message)
-            await asyncio.sleep(1)  # 메시지 수정 간에 1초 대기
-        except Exception as e:
-            print(f"메시지 수정 중 오류 발생: {e}")
-
 # 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -547,13 +533,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         # 메시지 업데이트
                         update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
                         
-                        # 메시지 수정
-                        try:
-                            # 메시지 간에 1초 대기
-                            await asyncio.sleep(1)
-                            await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
-                        except Exception as e:
-                            print(f"메시지 수정 중 오류 발생: {e}")
 
                         if naver_url:
                             stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
@@ -572,6 +551,14 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                             for key, value in quant_data.items():
                                 if key == '비고(메모)': value = memo
                                 df.at[index, key] = value
+
+                    # 메시지 수정
+                    try:
+                        # 메시지 간에 1초 대기
+                        await asyncio.sleep(1.5)
+                        await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
+                    except Exception as e:
+                        print(f"메시지 수정 중 오류 발생: {e}")
 
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -597,14 +584,18 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
             # 모든 작업이 완료된 후 최종 메시지 수정
             update_message += "\n엑셀 데이터 전송 완료"
+            # 메시지 간에 1초 대기
+            await asyncio.sleep(1.5)
             await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
 
             # 파일 전송
             with open(updated_file_name, 'rb') as file:
+                # 메시지 간에 1초 대기
+                await asyncio.sleep(1.5)
                 await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=updated_file_name))
 
         except Exception as e:
-            await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
+            await context.bot.send_message(chat_id=chat_id, text=f"{stock_name}\n처리 중 오류가 발생했습니다: {e}")
 
         context.user_data['next_command'] = None
     else:
