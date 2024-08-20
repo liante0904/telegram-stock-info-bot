@@ -597,10 +597,14 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
             # 모든 작업이 완료된 후 최종 메시지 수정
             update_message += "\n엑셀 데이터 전송 완료"
+            # 메시지 간에 1초 대기
+            await asyncio.sleep(1)
             await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
 
             # 파일 전송
             with open(updated_file_name, 'rb') as file:
+                # 메시지 간에 1초 대기
+                await asyncio.sleep(1)
                 await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=updated_file_name))
 
         except Exception as e:
