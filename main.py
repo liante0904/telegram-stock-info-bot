@@ -59,7 +59,7 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
         keyword_text = '\n'.join([f"- {keyword}" for keyword in current_keywords])
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"현재 저장된 알림 키워드:\n{keyword_text}\n\n새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요."
+            text=f"현재 저장된 알림 키워드:\n{keyword_text}\n\n새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요. \n\n '키워드 삭제' 를 하면 전체 키워드가 삭제 됩니다."
         )
     else:
         await context.bot.send_message(
@@ -290,29 +290,47 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     print('next_command', next_command)
     try:
         if next_command == 'report_alert_keyword':
-            # 키워드 알림 처리
-            keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
-            unique_keywords = set(keywords)
-            all_keywords = load_keywords()
+            if user_input.lower() == '키워드 삭제':
+                            all_keywords = load_keywords()
+                            
+                            # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
+                            if user_id in all_keywords:
+                                all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
+                                save_keywords(all_keywords)
+                                
+                                await context.bot.send_message(
+                                    chat_id=chat_id,
+                                    text='모든 알림 키워드가 삭제되었습니다.'
+                                )
+                            else:
+                                await context.bot.send_message(
+                                    chat_id=chat_id,
+                                    text='삭제할 키워드가 없습니다.'
+                                )
+            else:
+                # 키워드 알림 처리
+                keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
+                unique_keywords = set(keywords)
+                all_keywords = load_keywords()
 
-            if user_id not in all_keywords:
-                all_keywords[user_id] = []
+                if user_id not in all_keywords:
+                    all_keywords[user_id] = []
 
-            existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
-            new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
-            all_keywords[user_id].extend(new_keywords)
-            unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
-            all_keywords[user_id] = list(unique_user_keywords.values())
+                existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
+                new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
+                all_keywords[user_id].extend(new_keywords)
+                unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
+                all_keywords[user_id] = list(unique_user_keywords.values())
 
-            save_keywords(all_keywords)
+                save_keywords(all_keywords)
 
-            context.user_data['next_command'] = None
-            updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
-            updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
-            )
+                context.user_data['next_command'] = None
+                updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
+                updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
+                )
 
         elif next_command == 'generate_chart':
             # 차트 생성 처리
