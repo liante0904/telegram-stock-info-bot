@@ -206,18 +206,7 @@ def fetch_stock_info_quant(stock_code):
             print("배당수익률 값을 찾을 수 없습니다.")  # 로그: 배당수익률 없음
 
         # 예상 배당수익률
-        current_price_text = soup.select_one('#content > div.section.cop_analysis > div.sub_section > table > tbody > tr:nth-child(14) > td.t_line.cell_strong')
-        if current_price_text:
-            current_price_text = current_price_text.get_text(strip=True).split('%')[0]
-            current_price_text = current_price_text.replace(',', '')
-            try:
-                current_price = int(current_price_text)
-            except ValueError:
-                current_price = None
-        else:
-            current_price = None
-
-        est_dividend_price_value_text = soup.select_one('#content > div.section.trade_compare > table > tbody > tr:nth-child(1) > td:nth-child(2)')
+        est_dividend_price_value_text = soup.select_one('#content > div.section.cop_analysis > div.sub_section > table > tbody > tr:nth-child(14) > td.t_line.cell_strong')
         if est_dividend_price_value_text:
             est_dividend_price_value_text = est_dividend_price_value_text.get_text(strip=True).split('%')[0]
             est_dividend_price_value_text = est_dividend_price_value_text.replace(',', '')
@@ -228,8 +217,8 @@ def fetch_stock_info_quant(stock_code):
         else:
             est_dividend_price_value = None
 
-        if current_price is not None and est_dividend_price_value is not None and est_dividend_price_value != 0:
-            est_dividend_yield_value = current_price / est_dividend_price_value * 100
+        if est_dividend_price_value is not None and est_dividend_price_value != 0:
+            est_dividend_yield_value = est_dividend_price_value / current_price * 100
             est_dividend_yield_value = round(est_dividend_yield_value, 2)
         else:
             est_dividend_yield_value = 'N/A'

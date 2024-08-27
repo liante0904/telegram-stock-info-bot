@@ -459,7 +459,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         
                     # 필터 범위 지정
                     start_row, start_col = 1, 1
-                    end_row, end_col = df.shape[0] + 1, df.shape[1]
+                    # end_row, end_col = df.shape[0] + 1, df.shape[1]
+                    end_row = ws.max_row  # 실제 데이터가 있는 마지막 행을 가져옴
+                    end_col = ws.max_column  # 실제 데이터가 있는 마지막 열을 가져옴
                     cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
                     ws.auto_filter.ref = cell_range  # 필터 범위 지정
 
@@ -587,7 +589,9 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                 ws = wb[sheet_name]
                 
                 start_row, start_col = 1, 1
-                end_row, end_col = df.shape[0] + 1, df.shape[1]
+                # end_row, end_col = df.shape[0] + 1, df.shape[1]
+                end_row = ws.max_row  # 실제 데이터가 있는 마지막 행을 가져옴
+                end_col = ws.max_column  # 실제 데이터가 있는 마지막 열을 가져옴
                 cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
                 ws.auto_filter.ref = cell_range
 
