@@ -19,7 +19,7 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
     }
 
     def fetch_data(url):
-        print(f"Fetching data from: {url}")  # Debugging message
+        # print(f"Fetching data from: {url}")  # Debugging message
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             return response.json()
