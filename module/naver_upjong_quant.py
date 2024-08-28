@@ -3,7 +3,9 @@ import csv
 import re
 import requests
 from bs4 import BeautifulSoup
+import ast
 import pandas as pd  # pandas를 추가합니다
+from module.naver_stock_quant import fetch_stock_yield_by_period
 
 # 업종 페이지 URL (업종별 링크는 상대 경로로 제공됩니다)
 base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
@@ -108,6 +110,57 @@ def fetch_stock_info_quant(stock_code):
     # 페이지 내용 파싱
     soup = BeautifulSoup(response.text, 'html.parser')
 
+
+    # #middle > dl 선택자를 사용하여 요소 찾기
+    dl_tag = soup.select_one('#middle > dl')
+
+    # 키-값을 저장할 딕셔너리 생성
+    base_data = {}
+
+    # 모든 <dd> 태그를 찾아 처리
+    dd_tags = dl_tag.find_all('dd')
+
+    for i, dd in enumerate(dd_tags):
+        text = dd.text.strip()
+        
+        if i == 0:  # 첫 번째 <dd>는 그대로 저장
+            base_data[f'entry_{i+1}'] = text
+        else:  # 나머지는 키-값으로 저장
+            if ' ' in text:
+                key, value = text.split(' ', 1)
+            else:
+                key, value = text, ''
+            
+            # "현재가" 항목에 대한 특수 처리
+            if key == "현재가":
+                # 현재가 값을 75,600까지만 저장
+                base_data[key] = value.split(' ')[0]
+                
+                # "전일대비" 및 나머지 값을 추출하여 새로운 키로 추가
+                # '전일대비'라는 문자열 기준으로 split
+                parts = value.split('전일대비')
+                if len(parts) > 1:
+                    comparison_value = parts[1].strip()
+                    
+                    # 숫자만 추출 (하락/상승 등의 텍스트는 제거)
+                    numeric_value = re.findall(r'-?\d+', comparison_value)
+                    if numeric_value:
+                        base_data['전일비'] = " ".join(numeric_value)  # 숫자만 저장
+                    
+                    # 등락률 추출
+                    percent_match = re.search(r'(-?\d+\.\d+)\s+퍼센트', comparison_value)
+                    if percent_match:
+                        base_data['등락률'] = percent_match.group(1)
+            else:
+                base_data[key] = value
+
+    # 결과 출력
+    for key, value in base_data.items():
+        print(f"{key} : {value}")
+
+
+
+
     # 종목명 추출
     stock_name_tag = soup.select_one('#middle > dl > dd:nth-child(3)')
     if stock_name_tag:
@@ -125,7 +178,12 @@ def fetch_stock_info_quant(stock_code):
     print("Information section found.")  # 로그: 정보 섹션 찾음
 
     # 각 항목에 대한 CSS 선택자
-    data = {'종목명': stock_name}
+    data = {
+        '종목명': base_data.get('종목명', 'N/A'),
+        '현재가': base_data.get('현재가', 'N/A').replace(',', ''),
+        '전일비': base_data.get('전일비', 'N/A').replace(',', ''),
+        '등락률': base_data.get('등락률', 'N/A')
+    }
     
     try:
         # 현재주가
@@ -144,7 +202,7 @@ def fetch_stock_info_quant(stock_code):
 
         match = pattern.search(current_price_text)
         if match:
-            current_price = int(match.group(1).replace(',', ''))
+            data['현재가'] = int(match.group(1).replace(',', ''))
             change_amount = int(match.group(3).replace(',', ''))
             change_percent = match.group(4)
             if match.group(2) == '하락':
@@ -153,11 +211,9 @@ def fetch_stock_info_quant(stock_code):
             else:
                 change_percent = match.group(5)
                 change_amount  = change_amount
-            data['현재가'] = current_price
             data['전일비'] = change_amount
             data['등락률'] = change_percent
         else:
-            data['현재가'] = 'N/A'
             data['전일비'] = 'N/A'
             data['등락률'] = 'N/A'
             print('현재가, 전일비, 등락률을 찾을 수 없습니다.')
@@ -218,7 +274,7 @@ def fetch_stock_info_quant(stock_code):
             est_dividend_price_value = None
 
         if est_dividend_price_value is not None and est_dividend_price_value != 0:
-            est_dividend_yield_value = est_dividend_price_value / current_price * 100
+            est_dividend_yield_value = est_dividend_price_value / data['현재가'] * 100
             est_dividend_yield_value = round(est_dividend_yield_value, 2)
         else:
             est_dividend_yield_value = 'N/A'
@@ -247,11 +303,23 @@ def fetch_stock_info_quant(stock_code):
         print(f"Error parsing data: {e}")  # 로그: 파싱 오류
 
     print(url)
+
     # 네이버 주소 
     data['네이버url'] = url
     print(stock_code)
+
     # 종목코드
     data['종목코드'] = str(stock_code)
+
+    # 기간 수익률
+
+    # 문자열을 안전하게 딕셔너리로 변환
+    yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+
+    # 각 키와 값을 data 딕셔너리에 추가
+    for key, value in yield_data_dict.items():
+        data[key] = value
+ 
 
     # 빈 문자열을 'N/A'로 변경
     for key in data:
@@ -271,6 +339,13 @@ def fetch_stock_info_quant(stock_code):
         '전일비': data.get('전일비', 'N/A'),
         '등락률': data.get('등락률', 'N/A'),
         '비고(메모)': data.get('비고(메모)', ' '),
+        '1D': data.get('1D', 'N/A'),
+        '1W': data.get('1W', 'N/A'),
+        '1M': data.get('1M', 'N/A'),
+        '3M': data.get('3M', 'N/A'),
+        '6M': data.get('6M', 'N/A'),
+        'YTD': data.get('YTD', 'N/A'),
+        '1Y': data.get('1Y', 'N/A'),
         '종목코드': data.get('종목코드', 'N/A'),
         '네이버url': data.get('네이버url', 'N/A'),
     }
