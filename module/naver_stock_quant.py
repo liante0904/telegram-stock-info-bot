@@ -49,13 +49,16 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
     # 수익률 계산
     def calculate_return(past_price):
         if past_price is not None:
-            return round((current_price / past_price - 1) * 100, 2)
+            percentage_change = round((current_price / past_price - 1) * 100, 2)
+            return "{:.2f}".format(percentage_change)
         return None
 
     # 1D, 1M, 6M, YTD, 1Y 수익률 계산
     timeframes = {
         '1D': 1,
+        '1W': 7,
         '1M': 30,
+        '3M': 90,        
         '6M': 180,
         'YTD': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
         '1Y': 365
