@@ -159,15 +159,13 @@ def fetch_stock_info_quant(stock_code):
         print(f"{key} : {value}")
 
 
-
-
-    # 종목명 추출
-    stock_name_tag = soup.select_one('#middle > dl > dd:nth-child(3)')
-    if stock_name_tag:
-        stock_name = stock_name_tag.get_text(strip=True).split('종목명 ')[1]  # 종목명만 추출
-    else:
-        stock_name = 'N/A'
-        print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
+    # # 종목명 추출
+    # stock_name_tag = soup.select_one('#middle > dl > dd:nth-child(3)')
+    # if stock_name_tag:
+    #     stock_name = stock_name_tag.get_text(strip=True).split('종목명 ')[1]  # 종목명만 추출
+    # else:
+    #     stock_name = 'N/A'
+    #     print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
 
     # PER, 추정PER, PBR, 배당수익률 정보를 담고 있는 테이블 찾기
     info_section = soup.select_one('#tab_con1 > div:nth-child(5)')
@@ -321,10 +319,19 @@ def fetch_stock_info_quant(stock_code):
         data[key] = value
  
 
-    # 빈 문자열을 'N/A'로 변경
-    for key in data:
-        if data[key] == '':
-            data[key] = 'N/A'
+
+    # 숫자로 변환할 수 있는 항목들을 float으로 변환
+    # 숫자로 변환할 수 있는 키들을 나열합니다 (종목코드를 제외)
+    numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
+
+    for key in numeric_keys:
+        if key in data and isinstance(data[key], str):
+            # 문자열에서 ','와 '%' 제거 후 float으로 변환
+            value = data[key].replace(',', '').replace('%', '')
+            try:
+                data[key] = float(value)
+            except ValueError:
+                data[key] = 'N/A'  # 변환할 수 없는 경우 'N/A'로 처리
 
     # 순서 지정된 컬럼 순서에 맞게 데이터 정렬
     ordered_data = {
