@@ -39,12 +39,23 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
     # 날짜별 가격 가져오기
     def fetch_past_price(days_ago):
         past_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y%m%d')
-        trend_url = f'https://m.stock.naver.com/api/stock/{stock_code}/trend?pageSize=1&bizdate={past_date}'
-        trend_data = fetch_data(trend_url)
         
-        if trend_data:
-            return int(trend_data[0]['closePrice'].replace(',', ''))
+        while True:
+            trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={past_date}0000&endDateTime={past_date}0000'
+            trend_data = fetch_data(trend_url)
+            
+            if trend_data and len(trend_data) > 0:
+                return int(trend_data[0]['closePrice'])
+            
+            # 날짜를 하루 전으로 이동
+            past_date = (datetime.strptime(past_date, '%Y%m%d') - timedelta(days=1)).strftime('%Y%m%d')
+            
+            # 과거 날짜가 너무 멀어지지 않도록 안전장치 추가
+            if datetime.strptime(past_date, '%Y%m%d') < datetime(2000, 1, 1):
+                break
+        
         return None
+
 
     # 수익률 계산
     def calculate_return(past_price):
