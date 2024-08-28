@@ -122,32 +122,6 @@ async def select_stock(update: Update, context: CallbackContext) -> None:
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
 
-async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
-    chat_id = update.effective_chat.id
-
-    # 종목 정보를 가져옵니다.
-    quant_data = fetch_stock_info_quant(stock_code)
-    all_quant_data = []
-    if quant_data:
-        all_quant_data.append(quant_data)
-
-    today_date = datetime.today().strftime('%y%m%d')
-    excel_file_name = f'{stock_name}_naver_quant_{today_date}.xlsx'
-    
-    # Convert list of dictionaries to DataFrame
-    if all_quant_data:
-        df = pd.DataFrame(all_quant_data)
-        df.to_excel(excel_file_name, index=False, engine='openpyxl')
-        print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
-
-        if os.path.exists(excel_file_name):
-            with open(excel_file_name, 'rb') as file:
-                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=excel_file_name))
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
-    else:
-        await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
-
 # 업종 목록을 보여주는 함수 (인덱스 포함)
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -225,6 +199,32 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
     if remaining_stocks:
         context.user_data['stock_list'] = remaining_stocks
         await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
+
+async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+    chat_id = update.effective_chat.id
+
+    # 종목 정보를 가져옵니다.
+    quant_data = fetch_stock_info_quant(stock_code)
+    all_quant_data = []
+    if quant_data:
+        all_quant_data.append(quant_data)
+
+    today_date = datetime.today().strftime('%y%m%d')
+    excel_file_name = f'{stock_name}_naver_quant_{today_date}.xlsx'
+    
+    # Convert list of dictionaries to DataFrame
+    if all_quant_data:
+        df = pd.DataFrame(all_quant_data)
+        df.to_excel(excel_file_name, index=False, engine='openpyxl')
+        print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
+
+        if os.path.exists(excel_file_name):
+            with open(excel_file_name, 'rb') as file:
+                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=excel_file_name))
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
 
 async def process_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
@@ -622,8 +622,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         context.user_data['next_command'] = None
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
-
-
 
 # 엑셀 셀 주소 변환 함수
 def number_to_coordinate(rc):
