@@ -569,7 +569,8 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         if quant_data:
                             for key, value in quant_data.items():
-                                if key == '비고(메모)': value = memo
+                                if key == '비고(메모)': value = row.get('비고(메모)')
+                                elif key == '분류': value = row.get('분류')
                                 df.at[index, key] = value
 
                     # 메시지 수정
