@@ -532,11 +532,13 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
             # 최초 메시지 전송
             message = await context.bot.send_message(chat_id=chat_id, text="처리 중...")
-
             with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
                 for sheet_name in sheet_names:
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
                     update_message += f"============\n시트 이름: {sheet_name}\n"
+
+                    stock_update_count = 0  # 갱신된 종목 수를 세기 위한 변수
+                    temp_update_messages = []  # 갱신 중 메시지를 저장할 리스트
 
                     for index, row in df.iterrows():
                         naver_url = row.get('네이버url')
@@ -549,10 +551,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         stock_code = '' if pd.isna(stock_code) else stock_code
                         stock_name = '' if pd.isna(stock_name) else stock_name
                         memo = '' if pd.isna(memo) else memo
-                        
-                        # 메시지 업데이트
-                        update_message += f"{stock_name} 퀀트 데이터 갱신 중..\n"
-                        
 
                         if naver_url:
                             stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
@@ -567,15 +565,33 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         else:
                             quant_data = None
 
+                        # 각 종목 갱신 메시지 업데이트
                         if quant_data:
                             for key, value in quant_data.items():
                                 if key == '비고(메모)': value = row.get('비고(메모)')
                                 elif key == '분류': value = row.get('분류')
                                 df.at[index, key] = value
 
-                    # 메시지 수정
+                            stock_update_count += 1  # 갱신된 종목 수 증가
+                            
+                            # 메시지 수정
+                            temp_update_messages.append(f"   [{stock_name}] 퀀트 데이터 갱신 중..\n")
+                            
+                            try:
+                                # 메시지 간에 1초 대기
+                                await asyncio.sleep(1.5)
+                                await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message + ''.join(temp_update_messages))
+                            except Exception as e:
+                                print(f"메시지 수정 중 오류 발생: {e}")
+
+                    # 시트 갱신 완료 메시지 추가
+                    if stock_update_count > 0:
+                        update_message += f"   {stock_update_count}종목 갱신 완료\n"
+                    else:
+                        update_message += "   갱신된 종목이 없습니다.\n"
+
+                    # 시트가 넘어갈 때 메시지 업데이트
                     try:
-                        # 메시지 간에 1초 대기
                         await asyncio.sleep(1.5)
                         await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
                     except Exception as e:
@@ -590,7 +606,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                 ws = wb[sheet_name]
                 
                 start_row, start_col = 1, 1
-                # end_row, end_col = df.shape[0] + 1, df.shape[1]
                 end_row = ws.max_row  # 실제 데이터가 있는 마지막 행을 가져옴
                 end_col = ws.max_column  # 실제 데이터가 있는 마지막 열을 가져옴
                 cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
@@ -606,10 +621,16 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             wb.close()
 
             # 모든 작업이 완료된 후 최종 메시지 수정
-            update_message += "\n엑셀 데이터 전송 완료"
+            update_message += "============\n엑셀 데이터 전송 완료"
             # 메시지 간에 1초 대기
             await asyncio.sleep(1.5)
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
+            if len(update_message) > 3000:
+                # 메시지가 3000자를 넘는 경우, 메시지 분할 전송
+                for i in range(0, len(update_message), 3000):
+                    await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message[i:i + 3000])
+                    await asyncio.sleep(1)
+            else:
+                await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
 
             # 파일 전송
             with open(updated_file_name, 'rb') as file:
@@ -623,6 +644,9 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         context.user_data['next_command'] = None
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
+
+
+
 
 # 엑셀 셀 주소 변환 함수
 def number_to_coordinate(rc):
