@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
-from module.naver_upjong_quant import fetch_upjong_list, fetch_stock_info_in_upjong, fetch_stock_info_quant
+from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
@@ -126,7 +126,7 @@ async def select_stock(update: Update, context: CallbackContext) -> None:
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     try:
-        upjong_list = fetch_upjong_list()
+        upjong_list = fetch_upjong_list_API()
         upjong_message = "업종 목록:\n"
         upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
         
@@ -403,7 +403,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         
         else:
             # 업종 검색 처리
-            upjong_list = fetch_upjong_list()
+            upjong_list = fetch_upjong_list_API()
             upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
             upjong_number_map = {str(index + 1): 업종명 for index, (업종명, _, _) in enumerate(upjong_list)}
 
