@@ -3,7 +3,18 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd  # pandas를 추가합니다
+from module.cache_manager import CacheManager
+
+from datetime import datetime
 from module.naver_stock_quant import fetch_stock_yield_by_period
+
+
+CACHE_FILE = "upjong_cache.json"
+MARKET_OPEN_TIME = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+MARKET_CLOSE_TIME = datetime.now().replace(hour=15, minute=30, second=0, microsecond=0)
+
+cache_manager = CacheManager(CACHE_FILE, MARKET_OPEN_TIME, MARKET_CLOSE_TIME)
+
 
 # 업종 페이지 URL (업종별 링크는 상대 경로로 제공됩니다)
 base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
@@ -40,8 +51,12 @@ def fetch_upjong_list():
     print(data)
     return data
 
-
 def fetch_upjong_list_API():
+    if cache_manager.is_cache_valid():
+        print("[DEBUG] 유효한 캐시를 발견했습니다.")
+        return cache_manager.get_cached_data()
+    
+    print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
     url = "https://m.stock.naver.com/api/stocks/industry?pageSize=100"
     response = requests.get(url)
     
@@ -50,13 +65,16 @@ def fetch_upjong_list_API():
     
     data = response.json()
     
-    # 데이터에서 필요한 정보를 추출하여 변환
     result = []
     for group in data['groups']:
         name = group['name']
-        change_rate = f"+{group['changeRate']}%"
+        change_rate = f"{group['changeRate']}%"
         link = f"/sise/sise_group_detail.naver?type=upjong&no={group['no']}"
         result.append((name, change_rate, link))
+    
+    if data['marketStatus'] == 'CLOSE':
+        print("[DEBUG] 마켓이 원래 개장 중이어야 하지만, 현재는 CLOSE 상태입니다 (휴장일 가능성).")
+        cache_manager.save_cache({'result': result, 'marketStatus': 'CLOSE'})
     
     return result
 
@@ -433,6 +451,11 @@ def main():
         for 업종명, 등락률, _ in upjong_list:
             print(f'업종명: {업종명}, 등락률: {등락률}')
 
-if __name__ == '__main__':
+
+# 함수 사용 예
+if __name__ == "__main__":
     # main()
-    fetch_upjong_list_API()
+    upjong_list = fetch_upjong_list_API()
+    for item in upjong_list:
+        print(item)
+
