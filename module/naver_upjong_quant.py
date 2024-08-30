@@ -1,9 +1,7 @@
 import argparse
-import csv
 import re
 import requests
 from bs4 import BeautifulSoup
-import ast
 import pandas as pd  # pandas를 추가합니다
 from module.naver_stock_quant import fetch_stock_yield_by_period
 
