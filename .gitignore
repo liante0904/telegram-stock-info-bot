@@ -42,3 +42,4 @@ recent_searches.json
 *.xlsx
 *.xls
 (main)telegram-stock-info-bot.code-workspace
+*.json

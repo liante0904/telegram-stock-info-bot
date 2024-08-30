@@ -179,7 +179,7 @@ async def process_selected_stock_for_chart(update: Update, context: CallbackCont
     remaining_stocks = context.user_data.get('remaining_stocks', [])
     if remaining_stocks:
         context.user_data['stock_list'] = remaining_stocks
-        await process_stock_list(update, context, user_id, update.callback_query.message)
+        await process_generate_chart_stock_list(update, context, user_id, update.callback_query.message)
     else:
         # 미디어 그룹을 한 번만 전송
         await generate_and_send_charts_from_files(context, chat_id, context.user_data['generated_charts'])
@@ -226,19 +226,28 @@ async def process_selected_stock_for_quant(update: Update, context: CallbackCont
     else:
         await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
 
-async def process_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
+async def process_generate_chart_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
-    chat_id = user_id
-    all_quant_data = []
+
     for stock_name in stock_list:
         results = search_stock(stock_name)
         if results and len(results) == 1:
             stock_name, stock_code = results[0]['name'], results[0]['code']
-            await message.reply_text(f"{stock_name}({stock_code}) 퀀트 파일 생성 중...")
+            await message.reply_text(f"{stock_name}({stock_code}) 차트를 생성 중...")
 
-            quant_data = fetch_stock_info_quant(stock_code)
-            if quant_data:
-                all_quant_data.append(quant_data)
+            # 최근 검색 종목에 추가 (중복 방지)
+            if user_id not in context.bot_data['recent_searches']:
+                context.bot_data['recent_searches'][user_id] = []
+            if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
+                context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
+            save_recent_searches(context.bot_data['recent_searches'])
+
+            chart_filename = draw_chart(stock_code, stock_name)
+            if os.path.exists(chart_filename):
+                context.user_data['generated_charts'].append(chart_filename)
+            else:
+                await message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
+
         elif results and len(results) > 1:
             buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
             reply_markup = InlineKeyboardMarkup(buttons)
@@ -249,39 +258,13 @@ async def process_stock_list(update: Update, context: CallbackContext, user_id: 
         else:
             await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
 
-    # Ensure the folder exists
-    if not os.path.exists(EXCEL_FOLDER_PATH):
-        os.makedirs(EXCEL_FOLDER_PATH)
+    # 미디어 그룹을 한 번만 전송
+    await generate_and_send_charts_from_files(context, update.effective_chat.id, context.user_data['generated_charts'])
 
-    if all_quant_data:
-        # Define the base file name and extension
-        today_date = datetime.today().strftime('%y%m%d')
-        base_file_name = f'stock_quant_{today_date}_{user_id}'
-        file_extension = '.xlsx'
-        counter = 0
-        excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
-
-        # Check if the file already exists and increment the sequence number if necessary
-        while os.path.exists(excel_file_name):
-            counter += 1
-            excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
-
-        # Write the Excel file
-        df = pd.DataFrame(all_quant_data)
-        df.to_excel(excel_file_name, index=False, engine='openpyxl')
-
-        # Send the file to the user
-        if os.path.exists(excel_file_name):
-            with open(excel_file_name, 'rb') as file:
-                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
-
-    # Reset the state
+    # 모든 차트 생성 후 상태 재설정
     context.user_data['next_command'] = None
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 퀀트 파일을 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
-    context.user_data['next_command'] = 'stock_quant'
-
+    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
+    context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     user_input = update.message.text
@@ -291,22 +274,22 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     try:
         if next_command == 'report_alert_keyword':
             if user_input.lower() == '키워드 삭제':
-                            all_keywords = load_keywords()
-                            
-                            # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
-                            if user_id in all_keywords:
-                                all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
-                                save_keywords(all_keywords)
-                                
-                                await context.bot.send_message(
-                                    chat_id=chat_id,
-                                    text='모든 알림 키워드가 삭제되었습니다.'
-                                )
-                            else:
-                                await context.bot.send_message(
-                                    chat_id=chat_id,
-                                    text='삭제할 키워드가 없습니다.'
-                                )
+                all_keywords = load_keywords()
+                
+                # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
+                if user_id in all_keywords:
+                    all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
+                    save_keywords(all_keywords)
+                    
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text='모든 알림 키워드가 삭제되었습니다.'
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text='삭제할 키워드가 없습니다.'
+                    )
             else:
                 # 키워드 알림 처리
                 keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
@@ -337,7 +320,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
             context.user_data['stock_list'] = stock_list
             context.user_data['generated_charts'] = []
-            await process_stock_list(update, context, user_id, update.message)
+            await process_generate_chart_stock_list(update, context, user_id, update.message)
 
         elif next_command == 'search_report':
             # 보고서 검색 처리
