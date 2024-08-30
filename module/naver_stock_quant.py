@@ -1,12 +1,6 @@
-import argparse
-import csv
-import re
 import requests
-from bs4 import BeautifulSoup
-import pandas as pd  # pandas를 추가합니다
 import requests
 from datetime import datetime, timedelta
-import json
 
 def fetch_stock_yield_by_period(stock_code=None, date=None):
     # stock_code가 제공되지 않았을 때 에러 처리

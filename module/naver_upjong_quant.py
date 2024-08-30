@@ -37,8 +37,28 @@ def fetch_upjong_list():
             등락률 = cols[1].get_text(strip=True)
             링크 = cols[0].find('a')['href']
             data.append((업종명, 등락률, 링크))
-    
+    print(data)
     return data
+
+
+def fetch_upjong_list_API():
+    url = "https://m.stock.naver.com/api/stocks/industry?pageSize=100"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        raise Exception(f"API 요청 실패: {response.status_code}")
+    
+    data = response.json()
+    
+    # 데이터에서 필요한 정보를 추출하여 변환
+    result = []
+    for group in data['groups']:
+        name = group['name']
+        change_rate = f"+{group['changeRate']}%"
+        link = f"/sise/sise_group_detail.naver?type=upjong&no={group['no']}"
+        result.append((name, change_rate, link))
+    
+    return result
 
 def fetch_stock_info_in_upjong(upjong_link):
     base_url = 'https://finance.naver.com'
@@ -365,7 +385,7 @@ def main():
     parser.add_argument('option', type=str, nargs='?', help='옵션: 퀀트 정보를 가져오려면 "퀀트"를 입력하세요.')
     args = parser.parse_args()
     
-    upjong_list = fetch_upjong_list()
+    upjong_list = fetch_upjong_list_API()
     
     if args.upjong_name:
         # 업종명을 입력받은 경우
@@ -414,4 +434,5 @@ def main():
             print(f'업종명: {업종명}, 등락률: {등락률}')
 
 if __name__ == '__main__':
-    main()
+    # main()
+    fetch_upjong_list_API()
