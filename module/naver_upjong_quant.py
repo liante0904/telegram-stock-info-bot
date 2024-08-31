@@ -167,26 +167,38 @@ def fetch_stock_info_quant(stock_code):
             else:
                 key, value = text, ''
             
+            # 가격에서 쉼표(,) 제거
+            value = value.replace(',', '')
+
             # "현재가" 항목에 대한 특수 처리
             if key == "현재가":
-                # 현재가 값을 75,600까지만 저장
                 base_data[key] = value.split(' ')[0]
                 
                 # "전일대비" 및 나머지 값을 추출하여 새로운 키로 추가
-                # '전일대비'라는 문자열 기준으로 split
                 parts = value.split('전일대비')
                 if len(parts) > 1:
                     comparison_value = parts[1].strip()
                     
-                    # 숫자만 추출 (하락/상승 등의 텍스트는 제거)
-                    numeric_value = re.findall(r'-?\d+', comparison_value)
-                    if numeric_value:
-                        base_data['전일비'] = " ".join(numeric_value)  # 숫자만 저장
-                    
-                    # 등락률 추출
-                    percent_match = re.search(r'(-?\d+\.\d+)\s+퍼센트', comparison_value)
-                    if percent_match:
-                        base_data['등락률'] = percent_match.group(1)
+                    if "보합" in comparison_value:
+                        base_data['전일비'] = "0"
+                        base_data['등락률'] = "0.00"
+                    else:
+                        if "하락" in comparison_value:
+                            sign = "-"
+                        elif "상승" in comparison_value:
+                            sign = ""
+                        else:
+                            sign = ""
+
+                        # 전일비 숫자 추출 및 부호 추가
+                        numeric_value = re.findall(r'-?\d+', comparison_value)
+                        if numeric_value:
+                            base_data['전일비'] = f"{sign}{numeric_value[0]}"
+
+                        # 등락률 추출 및 부호 추가
+                        percent_match = re.search(r'(-?\d+\.\d+)\s+퍼센트', comparison_value)
+                        if percent_match:
+                            base_data['등락률'] = f"{sign}{percent_match.group(1)}"
             else:
                 base_data[key] = value
 
@@ -194,14 +206,6 @@ def fetch_stock_info_quant(stock_code):
     for key, value in base_data.items():
         print(f"{key} : {value}")
 
-
-    # # 종목명 추출
-    # stock_name_tag = soup.select_one('#middle > dl > dd:nth-child(3)')
-    # if stock_name_tag:
-    #     stock_name = stock_name_tag.get_text(strip=True).split('종목명 ')[1]  # 종목명만 추출
-    # else:
-    #     stock_name = 'N/A'
-    #     print("종목명을 찾을 수 없습니다.")  # 로그: 종목명 없음
 
     # PER, 추정PER, PBR, 배당수익률 정보를 담고 있는 테이블 찾기
     info_section = soup.select_one('#tab_con1 > div:nth-child(5)')
@@ -214,43 +218,12 @@ def fetch_stock_info_quant(stock_code):
     # 각 항목에 대한 CSS 선택자
     data = {
         '종목명': base_data.get('종목명', 'N/A'),
-        '현재가': base_data.get('현재가', 'N/A').replace(',', ''),
-        '전일비': base_data.get('전일비', 'N/A').replace(',', ''),
+        '현재가': int(base_data.get('현재가', 'N/A').replace(',', '')),
+        '전일비': int(base_data.get('전일비', 'N/A').replace(',', '')),
         '등락률': base_data.get('등락률', 'N/A')
     }
     
     try:
-        # 현재주가
-        current_price_tag = soup.select_one('#middle > dl > dd:nth-child(5)')
-        current_price_text = current_price_tag.get_text(strip=True) if current_price_tag else 'N/A'
-
-        # 현재가, 전일비, 등락률 추출
-        pattern = re.compile(r'''
-            현재가\s+([\d,]+)\s+          # 현재가 (숫자와 쉼표)
-            전일대비\s+                  # 전일대비 (문자열)
-            (상승|하락)\s+                # 상승 또는 하락
-            ([\d,]+)\s+                  # 전일비 (숫자와 쉼표)
-            (플러스|마이너스)?\s*        # 플러스 또는 마이너스 (선택적)
-            ([\d.]+)\s+퍼센트            # 등락률 (숫자)
-        ''', re.VERBOSE)
-
-        match = pattern.search(current_price_text)
-        if match:
-            data['현재가'] = int(match.group(1).replace(',', ''))
-            change_amount = int(match.group(3).replace(',', ''))
-            change_percent = match.group(4)
-            if match.group(2) == '하락':
-                change_percent = '-' + match.group(5)
-                change_amount  = '-' + str(change_amount)
-            else:
-                change_percent = match.group(5)
-                change_amount  = change_amount
-            data['전일비'] = change_amount
-            data['등락률'] = change_percent
-        else:
-            data['전일비'] = 'N/A'
-            data['등락률'] = 'N/A'
-            print('현재가, 전일비, 등락률을 찾을 수 없습니다.')
 
         # PER
         per_value = info_section.select_one('tr:nth-of-type(1) > td')
@@ -353,9 +326,6 @@ def fetch_stock_info_quant(stock_code):
     # 각 키와 값을 data 딕셔너리에 추가
     for key, value in yield_data_dict.items():
         data[key] = value
- 
-
-
     # 숫자로 변환할 수 있는 항목들을 float으로 변환
     # 숫자로 변환할 수 있는 키들을 나열합니다 (종목코드를 제외)
     numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
@@ -382,7 +352,7 @@ def fetch_stock_info_quant(stock_code):
         '전일비': data.get('전일비', 'N/A'),
         '등락률': data.get('등락률', 'N/A'),
         '비고(메모)': data.get('비고(메모)', ' '),
-        '1D': data.get('1D', 'N/A'),
+        '1D': data.get('등락률', 'N/A'), # 주말 & 휴장 처리
         '1W': data.get('1W', 'N/A'),
         '1M': data.get('1M', 'N/A'),
         '3M': data.get('3M', 'N/A'),
