@@ -80,33 +80,6 @@ def fetch_upjong_list():
     print(data)
     return data
 
-
-    if cache_manager.is_cache_valid():
-        print("[DEBUG] 유효한 캐시를 발견했습니다.")
-        return cache_manager.get_cached_data()
-    
-    print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
-    url = "https://m.s  tock.naver.com/api/stocks/industry?pageSize=100"
-    response = requests.get(url)
-    
-    if response.status_code != 200:
-        raise Exception(f"API 요청 실패: {response.status_code}")
-    
-    data = response.json()
-    
-    result = []
-    for group in data['groups']:
-        name = group['name']
-        change_rate = f"{group['changeRate']}%"
-        link = f"/sise/sise_group_detail.naver?type=upjong&no={group['no']}"
-        result.append((name, change_rate, link))
-    
-    if data['marketStatus'] == 'CLOSE':
-        print("[DEBUG] 마켓이 원래 개장 중이어야 하지만, 현재는 CLOSE 상태입니다 (휴장일 가능성).")
-        cache_manager.save_cache({'result': result, 'marketStatus': 'CLOSE'})
-    
-    return result
-
 def fetch_upjong_list_API():
     cache_manager = CacheManager("cache", "upjong")
     
