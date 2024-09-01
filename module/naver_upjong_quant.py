@@ -57,7 +57,7 @@ def fetch_upjong_list_API():
         return cache_manager.get_cached_data()
     
     print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
-    url = "https://m.stock.naver.com/api/stocks/industry?pageSize=100"
+    url = "https://m.s  tock.naver.com/api/stocks/industry?pageSize=100"
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -123,6 +123,188 @@ def fetch_stock_info_in_upjong(upjong_link):
             stock_data.append((종목명, 현재가, 전일비, 등락률, link))
     
     return stock_data
+
+def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
+    # 둘 중 하나의 인자가 반드시 제공되어야 함
+    if not stock_code and not stock_name:
+        raise ValueError("Either 'stock_code' or 'stock_name' must be provided.")
+    
+    # stock_code가 명시된 경우, 해당 정보 출력
+    if stock_code:
+        print(f"Stock Code provided: {stock_code}")
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
+    # 새로운 API 호출 및 출력
+    # api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/integration'
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/basic'
+
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            print(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print('api_url:',api_url)
+        print(f"Error fetching API data: {e}")
+        
+    print('api_url:',api_url)
+    stock_basic_data = api_response.json()
+    if stock_basic_data['stockEndType'] == 'konex': return ''
+    print(stock_basic_data)
+    print('='*30)
+
+    # 각 항목에 대한 CSS 선택자
+    data = {
+        '종목명': stock_basic_data.get('stockName', 'N/A'),
+        '현재가': safe_int(stock_basic_data.get('closePrice', 'N/A')),
+        '전일비': safe_int(stock_basic_data.get('compareToPreviousClosePrice', 'N/A')),
+        '등락률': stock_basic_data.get('fluctuationsRatio', 'N/A')
+    }
+    
+    # 새로운 API 호출 및 출력
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/integration'
+    
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            print(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+
+
+    total_infos = api_response.json()
+
+
+    #{'전일': '74,000', '시가': '74,400', '고가': '75,000', '저가': '74,100', 
+    # '거래량': '13,570,584', '대금': '1,010,647백만', '시총': '443조 5,548억', 
+    # '외인소진율': '56.06%', '52주 최고': '88,800', '52주 최저': '66,000', 
+    # 'PER': '18.16배', 'EPS': '4,091원', '추정PER': '12.56배', '추정EPS': '5,917원', 
+    # 'PBR': '1.35배', 'BPS': '55,011원', '배당수익률': '1.94%', '주당배당금': '1,444원'}
+    # totalInfos에서 필요한 데이터 추출
+    total_infos = {info['key']: info['value'] for info in total_infos.get('totalInfos', [])}
+    print('*'*30)
+    print(total_infos)
+    print('*'*30)
+    print('여기')
+    data.update({
+        'PER': safe_float(total_infos.get('PER', 'N/A').replace('배', '')),
+        'fwdPER': safe_float(total_infos.get('추정PER', 'N/A').replace('배', '')),
+        'PBR': safe_float(total_infos.get('PBR', 'N/A').replace('배', '')),
+        '배당수익률': safe_float(total_infos.get('배당수익률', 'N/A').replace('%', '')),
+        '예상배당수익률': 'N/A'  # 예상 배당수익률은 totalInfos에서 제공하지 않으므로 따로 계산하거나 처리 필요
+    })
+
+
+
+    # API URL 설정
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/finance/annual'
+    
+    # API 호출 및 데이터 가져오기
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        
+        if api_response.status_code != 200:
+            print(f"Failed to fetch API data: Status code {api_response.status_code}")
+            return
+        
+        stock_finance_data = api_response.json()
+        
+    
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        return
+    
+    # 현재 연도 계산
+    current_year = datetime.now().year
+
+    # 현재 연도와 일치하는 키값 찾기
+    available_keys = [key['key'] for key in stock_finance_data['financeInfo']['trTitleList'] if key['key'][:4] == str(current_year)]
+
+    # 키값이 없을 경우 "N/A" 처리
+    if not available_keys:
+        target_key = None
+    else:
+        # 가장 최근 연도의 키값 선택
+        target_key = max(available_keys)
+
+    # 예상 ROE와 주당배당금 추출
+    try:
+        roe = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == 'ROE')
+        dividend = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == '주당배당금')
+
+        # 해당 연도의 데이터 출력
+        if target_key and target_key in roe['columns'] and target_key in dividend['columns']:
+            data['ROE'] = roe['columns'][target_key]['value']
+            data['예상배당수익률'] = safe_int(dividend['columns'][target_key]['value'])
+            data['예상배당수익률'] = data['예상배당수익률'] / data['현재가'] * 100
+            data['예상배당수익률'] = round( data['예상배당수익률'] , 2)
+        else:
+            data['ROE'] = "N/A"
+            data['예상배당수익률'] = "N/A"
+        
+        # print(f"{current_year}년 예상 ROE: {data['ROE']}")
+        # print(f"{current_year}년 예상 주당배당금: {data['예상배당수익률']}")
+    
+    except Exception as e:
+        print(f"Error processing stock data: {e}")
+        return
+
+    # 네이버 주소 
+    data['네이버url'] = f'https://finance.naver.com/item/main.naver?code={stock_code}'
+    print(stock_code)
+
+    # 종목코드
+    data['종목코드'] = str(stock_code)
+
+    # 기간 수익률
+    # 문자열을 안전하게 딕셔너리로 변환
+    yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+
+    # 각 키와 값을 data 딕셔너리에 추가
+    for key, value in yield_data_dict.items():
+        data[key] = value
+    # 숫자로 변환할 수 있는 항목들을 float으로 변환
+    # 숫자로 변환할 수 있는 키들을 나열합니다 (종목코드를 제외)
+    numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
+
+    for key in numeric_keys:
+        if key in data and isinstance(data[key], str):
+            # 문자열에서 ','와 '%' 제거 후 float으로 변환
+            value = data[key].replace(',', '').replace('%', '')
+            try:
+                data[key] = float(value)
+            except ValueError:
+                data[key] = 'N/A'  # 변환할 수 없는 경우 'N/A'로 처리
+
+    # 순서 지정된 컬럼 순서에 맞게 데이터 정렬
+    ordered_data = {
+        '종목명': data.get('종목명', 'N/A'),
+        'PER': data.get('PER', 'N/A'),
+        'fwdPER': data.get('fwdPER', 'N/A'),
+        'PBR': data.get('PBR', 'N/A'),
+        '배당수익률': data.get('배당수익률', 'N/A'),
+        '예상배당수익률': data.get('예상배당수익률', 'N/A'),
+        'ROE': data.get('ROE', 'N/A'),
+        '현재가': data.get('현재가', 'N/A'),
+        '전일비': data.get('전일비', 'N/A'),
+        '등락률': data.get('등락률', 'N/A'),
+        '비고(메모)': data.get('비고(메모)', ' '),
+        '1D': data.get('등락률', 'N/A'), # 주말 & 휴장 처리
+        '1W': data.get('1W', 'N/A'),
+        '1M': data.get('1M', 'N/A'),
+        '3M': data.get('3M', 'N/A'),
+        '6M': data.get('6M', 'N/A'),
+        'YTD': data.get('YTD', 'N/A'),
+        '1Y': data.get('1Y', 'N/A'),
+        '종목코드': data.get('종목코드', 'N/A'),
+        '네이버url': data.get('네이버url', 'N/A'),
+    }
+
+    print(ordered_data)
+
+    return ordered_data
 
 def fetch_stock_info_quant(stock_code):
     url = f'https://finance.naver.com/item/main.naver?code={stock_code}'
@@ -366,6 +548,25 @@ def fetch_stock_info_quant(stock_code):
     print(ordered_data)
 
     return ordered_data
+
+def safe_float(value):
+    """값이 'N/A'일 경우를 처리하는 안전한 부동 소수점 변환 함수"""
+    if value in ('N/A', ''):
+        return 'N/A'
+    try:
+        return float(value.replace(',', ''))
+    except ValueError:
+        return 'N/A'
+    
+def safe_int(value):
+    """값이 'N/A'일 경우를 처리하는 안전한 정수 변환 함수"""
+    if value in ('N/A', ''):
+        return 'N/A'
+    try:
+        return int(value.replace(',', ''))
+    except ValueError:
+        return 'N/A'
+
 
 def main():
     parser = argparse.ArgumentParser(description="업종명에 따른 종목 정보를 크롤링합니다.")
