@@ -101,7 +101,7 @@ class CacheManager:
             print(f"[DEBUG] 주말이므로 마지막 거래일을 금요일로 설정: {last_trading_day}")
 
         # 16:30 설정
-        close_time = time(16, 30)
+        close_time = datetime.time(16, 30)
         # 마지막 거래일의 16:30 시간을 추가합니다.
         last_trading_day_end = datetime.datetime.combine(last_trading_day, close_time, kst)
         print(f"[DEBUG] 마지막 거래일의 16:30 시간: {last_trading_day_end}")
