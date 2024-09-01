@@ -57,7 +57,7 @@ def fetch_upjong_list_API():
         return cache_manager.get_cached_data()
     
     print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
-    url = "https://m.stock.naver.com/api/stocks/industry?pageSize=100"
+    url = "https://m.s  tock.naver.com/api/stocks/industry?pageSize=100"
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -146,9 +146,12 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
         if api_response.status_code != 200:
             print(f"Failed to fetch API data: Status code {api_response.status_code}")
     except Exception as e:
+        print('api_url:',api_url)
         print(f"Error fetching API data: {e}")
-
+        
+    print('api_url:',api_url)
     stock_basic_data = api_response.json()
+    if stock_basic_data['stockEndType'] == 'konex': return ''
     print(stock_basic_data)
     print('='*30)
 
@@ -207,6 +210,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
             return
         
         stock_finance_data = api_response.json()
+        
     
     except Exception as e:
         print(f"Error fetching API data: {e}")
