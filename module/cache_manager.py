@@ -1,7 +1,7 @@
-import os
 import json
-import time
-
+from datetime import datetime, time, timedelta
+import pytz
+import os
 
 class CacheManager:
     def __init__(self, cache_dir, cache_file_prefix):
@@ -26,34 +26,57 @@ class CacheManager:
         with open(cache_file, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False)
 
+
+
     def is_cache_valid(self, stock_code):
-        """
-        주어진 종목 코드에 대한 캐시 파일의 유효성을 검사합니다.
-        
-        Parameters:
-            stock_code (str): 종목 코드.
+        # 타임존 설정
+        kst = pytz.timezone('Asia/Seoul')
+        now = datetime.now(kst)
+        day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
 
-        Returns:
-            bool: 캐시가 유효하면 True, 그렇지 않으면 False.
-        """
-        
-        # 주어진 종목 코드에 해당하는 캐시 파일의 경로를 가져옵니다.
+        # 장 상태를 확인합니다.
+        from module.naver_upjong_quant import check_market_status
+        market_status = check_market_status(market='KOSPI')
+
+        # 1. 장중일 경우 캐시는 유효하지 않음
+        if market_status != 'CLOSE':
+            return False
+
+        # 2. 우선 캐시의 생성시간을 가져온다.
         cache_file = self._get_cache_file_path(stock_code)
-        
-        # 캐시 파일이 존재하는지 확인합니다.
-        if os.path.exists(cache_file):
-            from module.naver_upjong_quant import check_market_status
-            # 캐시 파일이 존재하는 경우, marketStatus가 "CLOSE"인지 확인합니다.
-            # 장이 "CLOSE" 상태가 아니면 캐시가 유효하지 않다고 판단합니다.
-            if check_market_status(market='KOSPI') != 'CLOSE':
-                print("[DEBUG] 장이 개장 중이므로 캐시가 유효하지 않음.")
-                return False
-            
-            # 장이 "CLOSE" 상태이고, 캐시 파일이 존재하면 캐시가 유효하다고 판단합니다.
-            print("[DEBUG] 장이 폐장 중이므로 캐시가 유효함.")
-            return True
-        
-        # 파일이 없거나 기타 조건이 맞지 않으면 캐시가 유효하지 않으므로 False를 반환합니다.
-        print("[DEBUG] 캐시 파일이 없거나 기타 조건이 맞지 않음.")
-        return False
 
+        if not os.path.exists(cache_file):
+            return False
+
+        file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
+
+        # 16:30 설정
+        close_time = time(16, 30)
+
+        # 3. 월요일 0시부터 8시까지는 주말과 동일하게 처리
+        # 캐시가 금요일 16시 30분 이후 생성된 캐시라면 유효캐시다
+        if day_of_week == 0 and now.time() < time(8, 0):  # 월요일, 0시~8시
+            last_friday = now - timedelta(days=3)  # 지난 금요일
+            last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
+            if file_mod_time > last_friday_close_time:
+                return True
+            else:
+                return False
+
+        # 4. 평일인 경우 캐시가 당일 16시 30분 이후에 생성됐다면 유효캐시임
+        if day_of_week < 5:  # 월요일~금요일
+            today_close_time = datetime.combine(now.date(), close_time, kst)
+            if file_mod_time > today_close_time:
+                return True
+            else:
+                return False
+
+        # 5. 조회일이 주말인 경우
+        if day_of_week >= 5:  # 토요일~일요일
+            # 캐시가 금요일 16시 30분 이후 생성된 캐시라면 유효캐시다
+            last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
+            last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
+            if file_mod_time > last_friday_close_time:
+                return True
+            else:
+                return False
