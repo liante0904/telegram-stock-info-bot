@@ -6,20 +6,32 @@ import pandas as pd  # pandas를 추가합니다
 from module.cache_manager import CacheManager
 
 from module.naver_stock_quant import fetch_stock_yield_by_period
-from datetime import datetime
+from datetime import datetime, time
 import pytz
 
+
 def check_market_status(market):
-    """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태를 확인합니다."""
+    """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
     
     kst = pytz.timezone('Asia/Seoul')
     now = datetime.now(kst)
     day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
+    month = now.month            # 현재 월
+    current_time = now.time()    # 현재 시간
 
-    # 토요일(5) 또는 일요일(6)인 경우 또는 금요일 15:30 이후
-    if day_of_week in [5, 6] or (day_of_week == 4 and now.time() > datetime.strptime('15:30', '%H:%M').time()):
+    # 시간 범위 정의
+    close_start_time = time(16, 30)  # 오후 16:30
+    close_end_time = time(8, 0)      # 오전 08:00
+
+    # 토요일(5) 또는 일요일(6)인 경우
+    if day_of_week in [5, 6]:
         return 'CLOSE'
     
+    # 16:30부터 08:00까지의 시간 범위 확인
+    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
+    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
+        return 'CLOSE'
+
     # 주중의 경우, API를 통해 시장 상태 확인
     api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
     headers = {
@@ -36,7 +48,6 @@ def check_market_status(market):
     except Exception as e:
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN'
-
 
 def fetch_upjong_list():
     base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
