@@ -148,10 +148,12 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
     except Exception as e:
         print('api_url:',api_url)
         print(f"Error fetching API data: {e}")
-        
+
     print('api_url:',api_url)
     stock_basic_data = api_response.json()
-    if stock_basic_data['stockEndType'] == 'konex': return ''
+
+    # if stock_basic_data['stockEndType'] == 'konex': return ''
+
     print(stock_basic_data)
     print('='*30)
 
@@ -207,49 +209,55 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
         
         if api_response.status_code != 200:
             print(f"Failed to fetch API data: Status code {api_response.status_code}")
-            return
-        
-        stock_finance_data = api_response.json()
-        
-    
+            data = {'ROE': "N/A", '예상배당수익률': "N/A"}
+        else:
+            stock_finance_data = api_response.json()
+            
+            # 현재 연도 계산
+            current_year = datetime.now().year
+            print(stock_finance_data)
+            
+            # financeInfo가 None인지 확인
+            if stock_finance_data.get('financeInfo') is None:
+                data['ROE'] = "N/A"
+                data['예상배당수익률'] = "N/A"
+            else:
+                # 현재 연도와 일치하는 키값 찾기
+                tr_title_list = stock_finance_data['financeInfo'].get('trTitleList', [])
+                available_keys = [key['key'] for key in tr_title_list if key['key'][:4] == str(current_year)]
+                
+                
+                # 키값이 없을 경우 "N/A" 처리
+                if not available_keys:
+                    target_key = None
+                else:
+                    # 가장 최근 연도의 키값 선택
+                    target_key = max(available_keys)
+                
+                
+                # 예상 ROE와 주당배당금 추출
+                try:
+                    roe = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == 'ROE')
+                    dividend = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == '주당배당금')
+
+                    # 해당 연도의 데이터 출력
+                    if target_key and target_key in roe['columns'] and target_key in dividend['columns']:
+                        data['ROE'] = roe['columns'][target_key]['value']
+                        data['예상배당수익률'] = safe_int(dividend['columns'][target_key]['value'])
+                        data['예상배당수익률'] = data['예상배당수익률'] / data['현재가'] * 100
+                        data['예상배당수익률'] = round(data['예상배당수익률'], 2)
+                    else:
+                        data['ROE'] = "N/A"
+                        data['예상배당수익률'] = "N/A"
+                
+                except Exception as e:
+                    print(f"Error processing stock data: {e}")
+                    data['ROE'] = "N/A"
+                    data['예상배당수익률'] = "N/A"
+
     except Exception as e:
         print(f"Error fetching API data: {e}")
-        return
-    
-    # 현재 연도 계산
-    current_year = datetime.now().year
-
-    # 현재 연도와 일치하는 키값 찾기
-    available_keys = [key['key'] for key in stock_finance_data['financeInfo']['trTitleList'] if key['key'][:4] == str(current_year)]
-
-    # 키값이 없을 경우 "N/A" 처리
-    if not available_keys:
-        target_key = None
-    else:
-        # 가장 최근 연도의 키값 선택
-        target_key = max(available_keys)
-
-    # 예상 ROE와 주당배당금 추출
-    try:
-        roe = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == 'ROE')
-        dividend = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == '주당배당금')
-
-        # 해당 연도의 데이터 출력
-        if target_key and target_key in roe['columns'] and target_key in dividend['columns']:
-            data['ROE'] = roe['columns'][target_key]['value']
-            data['예상배당수익률'] = safe_int(dividend['columns'][target_key]['value'])
-            data['예상배당수익률'] = data['예상배당수익률'] / data['현재가'] * 100
-            data['예상배당수익률'] = round( data['예상배당수익률'] , 2)
-        else:
-            data['ROE'] = "N/A"
-            data['예상배당수익률'] = "N/A"
-        
-        # print(f"{current_year}년 예상 ROE: {data['ROE']}")
-        # print(f"{current_year}년 예상 주당배당금: {data['예상배당수익률']}")
-    
-    except Exception as e:
-        print(f"Error processing stock data: {e}")
-        return
+        data = {'ROE': "N/A", '예상배당수익률': "N/A"}
 
     # 네이버 주소 
     data['네이버url'] = f'https://finance.naver.com/item/main.naver?code={stock_code}'

@@ -265,6 +265,7 @@ async def process_generate_chart_stock_list(update: Update, context: CallbackCon
     context.user_data['next_command'] = None
     await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
     context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
+    
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     user_input = update.message.text
@@ -424,6 +425,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         quant_data = fetch_stock_info_quant_API(stock_code)
                         if quant_data:
                             all_quant_data.append(quant_data)
+                        else: pass
 
                     # Ensure the folder exists
                     if not os.path.exists(EXCEL_FOLDER_PATH):
