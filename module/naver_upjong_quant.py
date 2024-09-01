@@ -224,24 +224,6 @@ def fetch_stock_info_quant(stock_code):
     }
     
     try:
-        # 현재주가
-        current_price_tag = soup.select_one('#middle > dl > dd:nth-child(5)')
-        current_price_text = current_price_tag.get_text(strip=True) if current_price_tag else 'N/A'
-
-        # 현재가, 전일비, 등락률 추출
-        pattern = re.compile(r'''
-            현재가\s+([\d,]+)\s+          # 현재가 (숫자와 쉼표)
-            전일대비\s+                  # 전일대비 (문자열)
-            (상승|하락)\s+                # 상승 또는 하락
-            ([\d,]+)\s+                  # 전일비 (숫자와 쉼표)
-            (플러스|마이너스)?\s*        # 플러스 또는 마이너스 (선택적)
-            ([\d.]+)\s+퍼센트            # 등락률 (숫자)
-        ''', re.VERBOSE)
-
-        # match = pattern.search(current_price_text)
-        # if match:
-        #     data['현재가'] = int(match.group(1).replace(',', ''))
-
 
         # PER
         per_value = info_section.select_one('tr:nth-of-type(1) > td')
@@ -344,9 +326,6 @@ def fetch_stock_info_quant(stock_code):
     # 각 키와 값을 data 딕셔너리에 추가
     for key, value in yield_data_dict.items():
         data[key] = value
- 
-
-
     # 숫자로 변환할 수 있는 항목들을 float으로 변환
     # 숫자로 변환할 수 있는 키들을 나열합니다 (종목코드를 제외)
     numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
