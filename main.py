@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
-from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant, fetch_stock_info_quant_API
+from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
@@ -204,7 +204,7 @@ async def process_selected_stock_for_quant(update: Update, context: CallbackCont
     chat_id = update.effective_chat.id
 
     # 종목 정보를 가져옵니다.
-    quant_data = fetch_stock_info_quant(stock_code)
+    quant_data = fetch_stock_info_quant_API(stock_code)
     all_quant_data = []
     if quant_data:
         all_quant_data.append(quant_data)
@@ -543,10 +543,10 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         # 퀀트 데이터 가져오기
                         if stock_code:
                             stock_info = search_stock(stock_code)
-                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
+                            quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         elif stock_name:
                             stock_info = search_stock(stock_name)
-                            quant_data = fetch_stock_info_quant(stock_info[0]['code'])
+                            quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         else:
                             quant_data = None
 
