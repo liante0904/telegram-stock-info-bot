@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
-from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant
+from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant, fetch_stock_info_quant_API
 from module.stock_search import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
@@ -342,7 +342,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 if results and len(results) == 1:
                     stock_name, stock_code = results[0]['name'], results[0]['code']
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant(stock_code)
+                    quant_data = fetch_stock_info_quant_API(stock_code)
                     print(quant_data)
                     if quant_data:
                         all_quant_data.append(quant_data)
@@ -364,7 +364,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                         stock_name, stock_code = results[0]['name'], results[0]['code']
                     
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant(stock_code)
+                    quant_data = fetch_stock_info_quant_API(stock_code)
 
                     print(quant_data)
                     if quant_data:
@@ -421,7 +421,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     all_quant_data = []
                     for 종목명, _, _, _, 종목링크 in stock_info:
                         stock_code = 종목링크.split('=')[-1]
-                        quant_data = fetch_stock_info_quant(stock_code)
+                        quant_data = fetch_stock_info_quant_API(stock_code)
                         if quant_data:
                             all_quant_data.append(quant_data)
 
