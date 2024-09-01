@@ -28,10 +28,9 @@ def check_market_status(market):
         return 'CLOSE'
     
     # 16:30부터 08:00까지의 시간 범위 확인
+    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
     if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
         return 'CLOSE'
-    
-    
 
     # 주중의 경우, API를 통해 시장 상태 확인
     api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
