@@ -559,15 +559,15 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                             stock_update_count += 1  # 갱신된 종목 수 증가
                             
-                            # 메시지 수정
-                            temp_update_messages.append(f"   [{stock_name}] 퀀트 데이터 갱신 중..\n")
+                            # # 메시지 수정
+                            # temp_update_messages.append(f"   [{stock_name}] 퀀트 데이터 갱신 중..\n")
                             
-                            try:
-                                # 메시지 간에 1초 대기
-                                await asyncio.sleep(1.5)
-                                await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message + ''.join(temp_update_messages))
-                            except Exception as e:
-                                print(f"메시지 수정 중 오류 발생: {e}")
+                            # try:
+                            #     # 메시지 간에 1초 대기
+                            #     await asyncio.sleep(1.5)
+                            #     await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message + ''.join(temp_update_messages))
+                            # except Exception as e:
+                            #     print(f"메시지 수정 중 오류 발생: {e}")
 
                     # 시트 갱신 완료 메시지 추가
                     if stock_update_count > 0:
@@ -580,7 +580,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         await asyncio.sleep(1.5)
                         await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message)
                     except Exception as e:
-                        print(f"메시지 수정 중 오류 발생: {e}")
+                        print(f"메시지 수정 중 오류 발생: {[{stock_name}]}종목을 확인 하세요 \n{e}")
 
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -629,9 +629,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         context.user_data['next_command'] = None
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
-
-
-
 
 # 엑셀 셀 주소 변환 함수
 def number_to_coordinate(rc):
