@@ -34,18 +34,7 @@ def select_data(isu=None, date=None):
         query += " AND (ISU_NO = ? OR ISU_NM = ?)"  # ISU_NO 또는 ISU_NM으로 검색
         params.extend([isu, isu])  # 같은 값이므로 두 번 추가
     
-    # if date:
-    #     try:
-    #         datetime.strptime(date, '%Y-%m-%d')
-    #     except ValueError:
-    #         if len(date) == 8:  # YYYYMMDD
-    #             date = datetime.strptime(date, '%Y%m%d').strftime('%Y-%m-%d')
-    #         elif len(date) == 6:  # YYMMDD
-    #             date = datetime.strptime(date, '%y%m%d').strftime('%Y-%m-%d')
-    #         else:
-    #             raise ValueError("Invalid date format. Use 'YYYYMMDD', 'YYMMDD', or 'YYYY-MM-DD'.")
-    #     query += " AND DATE(LAST_UPDATED) = ?"
-    #     params.append(date)
+    # date 필터링은 주석처리 되었으므로 제거했습니다.
     
     cursor.execute(query, params)
     results = cursor.fetchall()
@@ -56,9 +45,12 @@ def select_data(isu=None, date=None):
     # 데이터 출력
     print("\nFetched Data:")
     print(f"{' | '.join(column_names)}")  # 컬럼명 출력
-    for row in results:
-        print(' | '.join(str(item) if item is not None else 'None' for item in row))
-
+    if results:
+        for row in results:
+            print(' | '.join(str(item) if item is not None else 'None' for item in row))
+    else:
+        print("No data found.")
+        
 def create_table():
     """STOCK_INFO_MASTER_KR_ISU 테이블을 생성합니다."""
     cursor.execute("""
