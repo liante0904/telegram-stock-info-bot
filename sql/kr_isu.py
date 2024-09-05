@@ -44,19 +44,26 @@ def select_data(isu=None, date=None):
         return []  # 조회된 데이터가 없을 경우 빈 리스트 반환
 
 
+
+def drop_table():
+    """STOCK_INFO_MASTER_KR_ISU 테이블을 삭제합니다."""
+    cursor.execute("DROP TABLE IF EXISTS STOCK_INFO_MASTER_KR_ISU")
+    conn.commit()
+    print("Table STOCK_INFO_MASTER_KR_ISU dropped successfully.")
+
 def create_table():
     """STOCK_INFO_MASTER_KR_ISU 테이블을 생성합니다."""
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS STOCK_INFO_MASTER_KR_ISU (
-            ISU_NO TEXT(6) PRIMARY KEY,      -- 6자리 종목 코드
-            ISU_NM TEXT(40) NOT NULL,        -- 40자리 종목명
+            ISU_NO TEXT(6) UNIQUE,           -- 6자리 종목 코드 (유니크 설정)
+            ISU_NM TEXT(40) PRIMARY KEY,     -- 40자리 종목명 (PRIMARY KEY로 설정)
             MARKET TEXT NOT NULL,            -- 시장 종류 (KOSPI, KOSDAQ)
             SECTOR TEXT,                     -- 업종
             LAST_UPDATED DATETIME DEFAULT CURRENT_TIMESTAMP  -- 마지막 업데이트 시점
         )
     """)
     conn.commit()
-    print("Table STOCK_INFO_MASTER_KR_ISU created successfully.")
+    print("Table STOCK_INFO_MASTER_KR_ISU created with ISU_NM as primary key.")
 
 def insert_all_data():
     """모든 종목 데이터를 STOCK_INFO_MASTER_KR_ISU 테이블에 삽입합니다."""
@@ -113,7 +120,7 @@ if __name__ == "__main__":
 
     # 명령행 인자 파서 설정
     parser = argparse.ArgumentParser(description="SQLite STOCK_INFO_MASTER_KR_ISU Table Management Script")
-    parser.add_argument('action', choices=['create', 'insert', 'select', 'update', 'delete'], help="Action to perform")
+    parser.add_argument('action', choices=['create', 'insert', 'select', 'update', 'delete', 'drop'], help="Action to perform")
     parser.add_argument('isu', nargs='?', help="6자리 종목 코드 또는 종목명")  # 종목 코드 또는 이름을 받음
     parser.add_argument('--market', help="시장 종류 (KOSPI, KOSDAQ)")
     parser.add_argument('--sector', help="업종")
@@ -134,5 +141,7 @@ if __name__ == "__main__":
         if not args.isu:
             raise ValueError("ISU_NO is required for delete operation.")
         delete_data(args.isu)
+    elif args.action == 'drop':
+        drop_table()
 
     conn.close()
