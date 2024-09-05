@@ -1,7 +1,7 @@
 # chart_handler.py
 from telegram import InputMediaPhoto
 import os
-from module.stock_search import search_stock
+from module.naver_stock_util import search_stock
 from module.chart import draw_chart, get_last_date, CHART_DIR
 from module.recent_searches import save_recent_searches
 
