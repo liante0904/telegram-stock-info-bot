@@ -1,7 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
-import time
-import math
 import os
 import pandas as pd
 import asyncio
@@ -12,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
-from module.naver_stock_util import search_stock, search_stock_all
+from module.naver_stock_util import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
 from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
@@ -81,29 +79,6 @@ def load_keywords():
 def save_keywords(keywords):
     with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
         json.dump(keywords, file, ensure_ascii=False, indent=4)
-
-async def generate_and_send_charts_from_files(context: CallbackContext, chat_id, chart_files):
-    media_groups = []
-    current_group = []
-    files_to_close = []
-
-    for chart_filename in chart_files:
-        file = open(chart_filename, 'rb')
-        files_to_close.append(file)
-        if len(current_group) < 10:
-            current_group.append(InputMediaPhoto(file, filename=chart_filename))
-        else:
-            media_groups.append(current_group)
-            current_group = [InputMediaPhoto(file, filename=chart_filename)]
-
-    if current_group:
-        media_groups.append(current_group)
-
-    for group in media_groups:
-        await context.bot.send_media_group(chat_id=chat_id, media=group)
-
-    for file in files_to_close:
-        file.close()
 
 async def select_stock(update: Update, context: CallbackContext) -> None:
     query = update.callback_query

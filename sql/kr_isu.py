@@ -22,10 +22,11 @@ def select_data(isu=None, date=None):
     params = []
 
     if isu:
-        # 대소문자 구분 없이 검색하기 위해 UPPER() 함수 사용
-        query += " AND (UPPER(ISU_NO) = UPPER(?) OR UPPER(ISU_NM) = UPPER(?))"
-        params.extend([isu.upper(), isu.upper()])  # 입력값을 대문자로 변환하여 검색
-    
+        # 대소문자 구분 없이 부분 검색하기 위해 UPPER() 함수와 LIKE 사용
+        query += " AND (UPPER(ISU_NO) LIKE UPPER(?) OR UPPER(ISU_NM) LIKE UPPER(?))"
+        # LIKE를 사용할 때, 검색어 앞뒤에 '%' 추가하여 부분 검색 가능하게 함
+        params.extend([f"%{isu.upper()}%", f"%{isu.upper()}%"])
+
     cursor.execute(query, params)
     results = cursor.fetchall()
 
