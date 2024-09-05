@@ -1,6 +1,5 @@
 import os
 import json
-from datetime import datetime
 from telegram import Update
 from telegram.ext import CallbackContext
 
