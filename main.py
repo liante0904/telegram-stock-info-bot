@@ -542,10 +542,10 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         # 퀀트 데이터 가져오기
                         if stock_code:
-                            stock_info = search_stock_all(stock_code)
+                            stock_info = search_stock(stock_code)
                             quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         elif stock_name:
-                            stock_info = search_stock_all(stock_name)
+                            stock_info = search_stock(stock_name)
                             quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         else:
                             quant_data = None
