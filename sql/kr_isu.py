@@ -16,23 +16,15 @@ db_path = os.path.expanduser('~/sqlite3/telegram.db')
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# 명령행 인자 파서 설정
-parser = argparse.ArgumentParser(description="SQLite STOCK_INFO_MASTER_KR_ISU Table Management Script")
-parser.add_argument('action', choices=['create', 'insert', 'select', 'update', 'delete'], help="Action to perform")
-parser.add_argument('isu', nargs='?', help="6자리 종목 코드 또는 종목명")  # 종목 코드 또는 이름을 받음
-parser.add_argument('--market', help="시장 종류 (KOSPI, KOSDAQ)")
-parser.add_argument('--sector', help="업종")
-parser.add_argument('--date', help="조회할 날짜 (YYYYMMDD, YYMMDD, YYYY-MM-DD)")
-args = parser.parse_args()
-
 def select_data(isu=None, date=None):
     """STOCK_INFO_MASTER_KR_ISU 테이블에서 데이터를 조회합니다."""
     query = "SELECT ISU_NO, ISU_NM, MARKET, SECTOR, LAST_UPDATED FROM STOCK_INFO_MASTER_KR_ISU WHERE 1=1"
     params = []
 
     if isu:
-        query += " AND (ISU_NO = ? OR ISU_NM = ?)"  # ISU_NO 또는 ISU_NM으로 검색
-        params.extend([isu, isu])  # 같은 값이므로 두 번 추가
+        # 대소문자 구분 없이 검색하기 위해 UPPER() 함수 사용
+        query += " AND (UPPER(ISU_NO) = UPPER(?) OR UPPER(ISU_NM) = UPPER(?))"
+        params.extend([isu.upper(), isu.upper()])  # 입력값을 대문자로 변환하여 검색
     
     # date 필터링은 주석처리 되었으므로 제거했습니다.
     
@@ -50,7 +42,7 @@ def select_data(isu=None, date=None):
             print(' | '.join(str(item) if item is not None else 'None' for item in row))
     else:
         print("No data found.")
-        
+
 def create_table():
     """STOCK_INFO_MASTER_KR_ISU 테이블을 생성합니다."""
     cursor.execute("""
@@ -117,6 +109,16 @@ def delete_data(isu_no):
     print(f"Data deleted for ISU_NO: {isu_no}")
 
 if __name__ == "__main__":
+
+    # 명령행 인자 파서 설정
+    parser = argparse.ArgumentParser(description="SQLite STOCK_INFO_MASTER_KR_ISU Table Management Script")
+    parser.add_argument('action', choices=['create', 'insert', 'select', 'update', 'delete'], help="Action to perform")
+    parser.add_argument('isu', nargs='?', help="6자리 종목 코드 또는 종목명")  # 종목 코드 또는 이름을 받음
+    parser.add_argument('--market', help="시장 종류 (KOSPI, KOSDAQ)")
+    parser.add_argument('--sector', help="업종")
+    parser.add_argument('--date', help="조회할 날짜 (YYYYMMDD, YYMMDD, YYYY-MM-DD)")
+    args = parser.parse_args()
+
     if args.action == 'create':
         create_table()
     elif args.action == 'insert':
