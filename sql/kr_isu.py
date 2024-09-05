@@ -39,8 +39,10 @@ def select_data(isu=None, date=None):
         data.append(row_dict)
 
     if data:
+        print(data)
         return data
     else:
+        print([])
         return []  # 조회된 데이터가 없을 경우 빈 리스트 반환
 
 
