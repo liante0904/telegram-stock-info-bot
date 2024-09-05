@@ -1,5 +1,3 @@
-# pykrx_helper.py
-import time
 from pykrx import stock
 
 def get_tickers_and_names(market):

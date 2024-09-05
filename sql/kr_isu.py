@@ -17,7 +17,7 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
 def select_data(isu=None, date=None):
-    """STOCK_INFO_MASTER_KR_ISU 테이블에서 데이터를 조회합니다."""
+    """STOCK_INFO_MASTER_KR_ISU 테이블에서 데이터를 조회하고 딕셔너리 형태로 반환합니다."""
     query = "SELECT ISU_NO, ISU_NM, MARKET, SECTOR, LAST_UPDATED FROM STOCK_INFO_MASTER_KR_ISU WHERE 1=1"
     params = []
 
@@ -26,22 +26,23 @@ def select_data(isu=None, date=None):
         query += " AND (UPPER(ISU_NO) = UPPER(?) OR UPPER(ISU_NM) = UPPER(?))"
         params.extend([isu.upper(), isu.upper()])  # 입력값을 대문자로 변환하여 검색
     
-    # date 필터링은 주석처리 되었으므로 제거했습니다.
-    
     cursor.execute(query, params)
     results = cursor.fetchall()
 
     # 컬럼명 가져오기
     column_names = [description[0] for description in cursor.description]
 
-    # 데이터 출력
-    print("\nFetched Data:")
-    print(f"{' | '.join(column_names)}")  # 컬럼명 출력
-    if results:
-        for row in results:
-            print(' | '.join(str(item) if item is not None else 'None' for item in row))
+    # 결과를 딕셔너리 형태로 변환
+    data = []
+    for row in results:
+        row_dict = {column_names[i]: row[i] for i in range(len(column_names))}
+        data.append(row_dict)
+
+    if data:
+        return data
     else:
-        print("No data found.")
+        return []  # 조회된 데이터가 없을 경우 빈 리스트 반환
+
 
 def create_table():
     """STOCK_INFO_MASTER_KR_ISU 테이블을 생성합니다."""
