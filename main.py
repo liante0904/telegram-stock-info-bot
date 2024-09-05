@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
-from module.naver_stock_util import search_stock
+from module.naver_stock_util import search_stock, search_stock_all
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
 from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
