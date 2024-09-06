@@ -15,6 +15,8 @@ from module.chart import CHART_DIR
 from module.recent_searches import load_recent_searches, show_recent_searches
 from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
 from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
+from handler.quant_handler import process_selected_stock_for_quant
+from handler.upjong_handler import show_upjong_list
 from datetime import datetime, timedelta
 
 
@@ -111,28 +113,6 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
 
-# 업종 목록을 보여주는 함수 (인덱스 포함)
-async def show_upjong_list(update: Update, context: CallbackContext) -> None:
-    chat_id = update.effective_chat.id
-    try:
-        upjong_list = fetch_upjong_list_API()
-        upjong_message = "업종 목록:\n"
-        upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
-        
-        for i, (업종명, 등락률, _) in upjong_map.items():
-            # 이스케이프 처리
-            업종명 = 업종명.replace('.', '\\.')
-            등락률 = 등락률.replace('.', '\\.').replace('-', '\\-').replace('+', '\\+')
-            upjong_message += f"{i}\\. *{업종명}*   \\[{등락률}\\]\n"
-            # print(upjong_message)
-
-        upjong_message += "\n업종 번호 혹은 업종명\\(정확하게\\) 입력하세요\\."
-        context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
-        await context.bot.send_message(chat_id=chat_id, text=upjong_message, parse_mode='MarkdownV2')
-        context.user_data['next_command'] = 'naver_upjong_quant'
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
-
 async def set_commands(bot):
     commands = [
         BotCommand("generate_chart", "수급오실레이터 차트"),
@@ -144,32 +124,6 @@ async def set_commands(bot):
         BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")
     ]
     await bot.set_my_commands(commands)
-
-async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
-    chat_id = update.effective_chat.id
-
-    # 종목 정보를 가져옵니다.
-    quant_data = fetch_stock_info_quant_API(stock_code)
-    all_quant_data = []
-    if quant_data:
-        all_quant_data.append(quant_data)
-
-    today_date = datetime.today().strftime('%y%m%d')
-    excel_file_name = f'{stock_name}_naver_quant_{today_date}.xlsx'
-    
-    # Convert list of dictionaries to DataFrame
-    if all_quant_data:
-        df = pd.DataFrame(all_quant_data)
-        df.to_excel(excel_file_name, index=False, engine='openpyxl')
-        print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
-
-        if os.path.exists(excel_file_name):
-            with open(excel_file_name, 'rb') as file:
-                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=excel_file_name))
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
-    else:
-        await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
