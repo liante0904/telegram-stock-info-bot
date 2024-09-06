@@ -66,23 +66,6 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
     else:
         await message.reply_text(f"{stock_name}({stock_code})에 대한 레포트를 찾을 수 없습니다.")
 
-async def select_stock(update: Update, context: CallbackContext) -> None:
-    query = update.callback_query
-    await query.answer()
-    selected_code = query.data
-    results = context.user_data.get('search_results', [])
-
-    for result in results:
-        if result['code'] == selected_code:
-            stock_name, stock_code = result['name'], result['code']
-            await fetch_and_send_reports(update, context, str(query.from_user.id), query.message, stock_name, stock_code, context.user_data['writeFromDate'], datetime.today().strftime('%Y-%m-%d'))
-
-    # 나머지 종목 처리
-    remaining_stocks = context.user_data.get('remaining_stocks', [])
-    if remaining_stocks:
-        context.user_data['stock_list'] = remaining_stocks
-        await process_report_request(update, context, str(query.from_user.id), query.message)
-
 async def previous_search(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
     await query.answer()

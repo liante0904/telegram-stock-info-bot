@@ -1,4 +1,3 @@
-# chart_handler.py
 from telegram import InputMediaPhoto
 
 async def generate_and_send_charts_from_files(context, chat_id, chart_files):

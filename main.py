@@ -13,7 +13,7 @@ from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in
 from module.naver_stock_util import search_stock
 from module.chart import draw_chart, CHART_DIR
 from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
-from handler.report_handler import process_report_request, previous_search, select_stock, fetch_and_send_reports
+from handler.report_handler import process_report_request, previous_search, fetch_and_send_reports
 from handler.chart_handler import generate_and_send_charts_from_files
 from datetime import datetime, timedelta
 
@@ -80,7 +80,21 @@ def save_keywords(keywords):
     with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
         json.dump(keywords, file, ensure_ascii=False, indent=4)
 
-async def select_stock(update: Update, context: CallbackContext) -> None:
+async def route_command_based_on_user_input(update: Update, context: CallbackContext) -> None:
+    """
+    Handles the user's input after a command has been selected. This function 
+    processes the input (stock name or code) and routes the request to the 
+    appropriate processing function based on the selected command.
+
+    Args:
+        update (Update): The update object containing the user input and callback query.
+        context (CallbackContext): The context object containing user data and other information.
+
+    Processes the following commands based on user input:
+        - 'generate_chart': Calls `process_selected_stock_for_chart` to generate a chart for the selected stock.
+        - 'search_report': Calls `process_selected_stock_for_report` to generate a report for the selected stock.
+        - 'stock_quant': Calls `process_selected_stock_for_quant` to provide stock quant analysis for the selected stock.
+    """
     query = update.callback_query
     await query.answer()
     selected_code = query.data
@@ -635,7 +649,7 @@ def main():
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
 
 
-    application.add_handler(CallbackQueryHandler(select_stock, pattern=r'^\d{6}$'))
+    application.add_handler(CallbackQueryHandler(route_command_based_on_user_input, pattern=r'^\d{6}$'))
     application.add_handler(CallbackQueryHandler(previous_search, pattern='^previous_search$'))
 
     # Add message handlers
