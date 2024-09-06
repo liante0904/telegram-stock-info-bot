@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, InputMediaPhoto, InputFile
+from telegram import Update, BotCommand, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 import os
 import pandas as pd
@@ -11,10 +11,12 @@ from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from module.naver_stock_util import search_stock
-from module.chart import draw_chart, CHART_DIR
-from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
-from handler.report_handler import process_report_request, previous_search, fetch_and_send_reports
-from handler.chart_handler import generate_and_send_charts_from_files
+from module.chart import CHART_DIR
+from module.recent_searches import load_recent_searches, show_recent_searches
+from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
+from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
+from handler.quant_handler import process_selected_stock_for_quant
+from handler.upjong_handler import show_upjong_list
 from datetime import datetime, timedelta
 
 
@@ -49,7 +51,7 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     user_id = str(update.effective_user.id)
     
     # 현재 저장된 키워드 로드
-    all_keywords = load_keywords()
+    all_keywords = load_alert_keywords()
     current_keywords = [keyword['keyword'] for keyword in all_keywords.get(user_id, [])]
 
     # 사용자에게 현재 저장된 키워드를 보여주고 입력 요청
@@ -69,14 +71,14 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     context.user_data['next_command'] = 'report_alert_keyword'
 
 # JSON 파일에서 사용자 알림 키워드를 불러오는 함수
-def load_keywords():
+def load_alert_keywords():
     if os.path.exists(KEYWORD_FILE_PATH):
         with open(KEYWORD_FILE_PATH, 'r', encoding='utf-8') as file:
             return json.load(file)
     return {}
 
 # JSON 파일에 사용자 알림 키워드를 저장하는 함수
-def save_keywords(keywords):
+def save_alert_keywords(keywords):
     with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
         json.dump(keywords, file, ensure_ascii=False, indent=4)
 
@@ -111,28 +113,6 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
 
-# 업종 목록을 보여주는 함수 (인덱스 포함)
-async def show_upjong_list(update: Update, context: CallbackContext) -> None:
-    chat_id = update.effective_chat.id
-    try:
-        upjong_list = fetch_upjong_list_API()
-        upjong_message = "업종 목록:\n"
-        upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
-        
-        for i, (업종명, 등락률, _) in upjong_map.items():
-            # 이스케이프 처리
-            업종명 = 업종명.replace('.', '\\.')
-            등락률 = 등락률.replace('.', '\\.').replace('-', '\\-').replace('+', '\\+')
-            upjong_message += f"{i}\\. *{업종명}*   \\[{등락률}\\]\n"
-            # print(upjong_message)
-
-        upjong_message += "\n업종 번호 혹은 업종명\\(정확하게\\) 입력하세요\\."
-        context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
-        await context.bot.send_message(chat_id=chat_id, text=upjong_message, parse_mode='MarkdownV2')
-        context.user_data['next_command'] = 'naver_upjong_quant'
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
-
 async def set_commands(bot):
     commands = [
         BotCommand("generate_chart", "수급오실레이터 차트"),
@@ -145,116 +125,6 @@ async def set_commands(bot):
     ]
     await bot.set_my_commands(commands)
 
-async def process_selected_stock_for_chart(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
-    chat_id = update.effective_chat.id
-    user_id = str(update.effective_user.id)
-    
-    await update.callback_query.message.reply_text(f"{stock_name}({stock_code}) 차트를 생성 중...")
-
-    # 최근 검색 종목에 추가 (중복 방지)
-    if user_id not in context.bot_data['recent_searches']:
-        context.bot_data['recent_searches'][user_id] = []
-    if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
-        context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
-    save_recent_searches(context.bot_data['recent_searches'])
-
-    chart_filename = draw_chart(stock_code, stock_name)
-    if os.path.exists(chart_filename):
-        context.user_data['generated_charts'].append(chart_filename)
-    else:
-        await update.callback_query.message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
-
-    # 나머지 종목 처리
-    remaining_stocks = context.user_data.get('remaining_stocks', [])
-    if remaining_stocks:
-        context.user_data['stock_list'] = remaining_stocks
-        await process_generate_chart_stock_list(update, context, user_id, update.callback_query.message)
-    else:
-        # 미디어 그룹을 한 번만 전송
-        await generate_and_send_charts_from_files(context, chat_id, context.user_data['generated_charts'])
-
-        # 모든 차트 생성 후 상태 재설정
-        context.user_data['next_command'] = None
-        await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
-        context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
-
-async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
-    context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
-    context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
-    await fetch_and_send_reports(update, context, str(update.callback_query.from_user.id), update.callback_query.message, stock_name, stock_code, context.user_data['writeFromDate'], context.user_data['writeToDate'])
-
-    # 나머지 종목 처리
-    remaining_stocks = context.user_data.get('remaining_stocks', [])
-    if remaining_stocks:
-        context.user_data['stock_list'] = remaining_stocks
-        await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
-
-async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
-    chat_id = update.effective_chat.id
-
-    # 종목 정보를 가져옵니다.
-    quant_data = fetch_stock_info_quant_API(stock_code)
-    all_quant_data = []
-    if quant_data:
-        all_quant_data.append(quant_data)
-
-    today_date = datetime.today().strftime('%y%m%d')
-    excel_file_name = f'{stock_name}_naver_quant_{today_date}.xlsx'
-    
-    # Convert list of dictionaries to DataFrame
-    if all_quant_data:
-        df = pd.DataFrame(all_quant_data)
-        df.to_excel(excel_file_name, index=False, engine='openpyxl')
-        print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
-
-        if os.path.exists(excel_file_name):
-            with open(excel_file_name, 'rb') as file:
-                await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=excel_file_name))
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="엑셀 파일을 생성하는 데 문제가 발생했습니다.")
-    else:
-        await context.bot.send_message(chat_id=chat_id, text="퀀트 데이터를 가져오는 데 문제가 발생했습니다.")
-
-async def process_generate_chart_stock_list(update: Update, context: CallbackContext, user_id: str, message) -> None:
-    stock_list = context.user_data.get('stock_list', [])
-
-    for stock_name in stock_list:
-        results = search_stock(stock_name)
-        if results and len(results) == 1:
-            stock_name, stock_code = results[0]['name'], results[0]['code']
-            await message.reply_text(f"{stock_name}({stock_code}) 차트를 생성 중...")
-
-            # 최근 검색 종목에 추가 (중복 방지)
-            if user_id not in context.bot_data['recent_searches']:
-                context.bot_data['recent_searches'][user_id] = []
-            if not any(search['name'] == stock_name for search in context.bot_data['recent_searches'][user_id]):
-                context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
-            save_recent_searches(context.bot_data['recent_searches'])
-
-            chart_filename = draw_chart(stock_code, stock_name)
-            if os.path.exists(chart_filename):
-                context.user_data['generated_charts'].append(chart_filename)
-            else:
-                await message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
-
-        elif results and len(results) > 1:
-            buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
-            reply_markup = InlineKeyboardMarkup(buttons)
-            await message.reply_text("검색 결과를 선택하세요:", reply_markup=reply_markup)
-            context.user_data['search_results'] = results
-            context.user_data['remaining_stocks'] = stock_list[stock_list.index(stock_name) + 1:]
-            return
-        else:
-            await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
-
-    # 미디어 그룹을 한 번만 전송
-    await generate_and_send_charts_from_files(context, update.effective_chat.id, context.user_data['generated_charts'])
-
-    # 모든 차트 생성 후 상태 재설정
-    context.user_data['next_command'] = None
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='모든 차트를 전송했습니다. 다른 종목을 검색하시려면 종목명을 입력해주세요.')
-    context.user_data['next_command'] = 'generate_chart'  # 상태 재설정
-    
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     user_input = update.message.text
@@ -264,12 +134,12 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     try:
         if next_command == 'report_alert_keyword':
             if user_input.lower() == '키워드 삭제':
-                all_keywords = load_keywords()
+                all_keywords = load_alert_keywords()
                 
                 # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
                 if user_id in all_keywords:
                     all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
-                    save_keywords(all_keywords)
+                    save_alert_keywords(all_keywords)
                     
                     await context.bot.send_message(
                         chat_id=chat_id,
@@ -284,7 +154,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 # 키워드 알림 처리
                 keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
                 unique_keywords = set(keywords)
-                all_keywords = load_keywords()
+                all_keywords = load_alert_keywords()
 
                 if user_id not in all_keywords:
                     all_keywords[user_id] = []
@@ -295,7 +165,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
                 all_keywords[user_id] = list(unique_user_keywords.values())
 
-                save_keywords(all_keywords)
+                save_alert_keywords(all_keywords)
 
                 context.user_data['next_command'] = None
                 updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
@@ -645,7 +515,6 @@ def main():
     application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
     application.add_handler(CommandHandler("excel_quant", excel_quant))
-
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
 
 

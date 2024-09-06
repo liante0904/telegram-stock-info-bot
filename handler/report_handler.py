@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from module.naver_report_search_pc import search_stock_report
 from module.naver_stock_util import search_stock
 from module.recent_searches import save_recent_searches
+from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
 
 async def process_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
@@ -65,6 +66,18 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
         await message.reply_text("이전일자(2주일) 혹은 다른 종목을 검색할 수 있습니다.", reply_markup=reply_markup)
     else:
         await message.reply_text(f"{stock_name}({stock_code})에 대한 레포트를 찾을 수 없습니다.")
+
+
+async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+    context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
+    context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
+    await fetch_and_send_reports(update, context, str(update.callback_query.from_user.id), update.callback_query.message, stock_name, stock_code, context.user_data['writeFromDate'], context.user_data['writeToDate'])
+
+    # 나머지 종목 처리
+    remaining_stocks = context.user_data.get('remaining_stocks', [])
+    if remaining_stocks:
+        context.user_data['stock_list'] = remaining_stocks
+        await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
 
 async def previous_search(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
