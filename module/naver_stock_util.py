@@ -49,7 +49,7 @@ def search_stock_code(query):
     print(filtered_items)
     return filtered_items
 
-def search_stock_all(query):
+def search_stock_code_mobileAPI(query):
     # 1-1. select_sqlite_kr_stock을 통해 데이터를 조회
     result = select_sqlite_kr_stock(isu=query)
     
@@ -94,7 +94,7 @@ def search_stock_all(query):
         else:
             return []
 def main():
-    r = search_stock_all('aapl')
+    r = search_stock_code_mobileAPI('aapl')
     if r:
         print('0===>', r)
     else:
