@@ -44,3 +44,29 @@ jobs:
           pip install -r requirements.txt  # 종속성 설치
           sudo systemctl restart telegram-bot.service  # 서비스 재시작
         EOF
+
+    # 추가된 쉘: master 브랜치의 변경 사항을 test 브랜치에 연동
+    - name: Sync master changes to test branch
+      run: |
+        git fetch origin
+        git checkout test
+        git merge origin/master --no-ff -m "Sync changes from master"
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "Sync changes from master to test"
+          git push origin test
+        else
+          echo "No changes to commit for test branch"
+        fi
+
+    # 추가된 쉘: master 브랜치의 변경 사항을 dev 브랜치에 연동
+    - name: Sync master changes to dev branch
+      run: |
+        git fetch origin
+        git checkout dev
+        git merge origin/master --no-ff -m "Sync changes from master"
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "Sync changes from master to dev"
+          git push origin dev
+        else
+          echo "No changes to commit for dev branch"
+        fi
