@@ -45,28 +45,51 @@ jobs:
           sudo systemctl restart telegram-bot.service  # 서비스 재시작
         EOF
 
-    # 추가된 쉘: master 브랜치의 변경 사항을 test 브랜치에 연동
-    - name: Sync master changes to test branch
+  sync_branches:
+    needs: deploy
+    runs-on: ubuntu-22.04  # GitHub Actions에서 Ubuntu 22.04 환경을 사용
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Set up Git user
       run: |
-        git fetch origin
+        git config user.name "seunghoon shin"
+        git config user.email "liante0904@gmail.com"
+
+    - name: Get list of changed files
+      id: changed-files
+      run: |
+        CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+        echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
+        echo "$CHANGED_FILES" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
+    - name: Sync changed files with test branch
+      run: |
         git checkout test
-        git merge origin/master --no-ff -m "Sync changes from master"
+        for file in $(echo "$CHANGED_FILES" | tr '\n' ' '); do
+          git checkout master -- "$file"
+        done
         if ! git diff-index --quiet HEAD; then
-          git commit -m "Sync changes from master to test"
+          git commit -m "Sync changed files from master to test"
           git push origin test
         else
-          echo "No changes to commit for test branch"
+          echo "No changes to commit"
         fi
 
-    # 추가된 쉘: master 브랜치의 변경 사항을 dev 브랜치에 연동
-    - name: Sync master changes to dev branch
+    - name: Sync changed files with dev branch
       run: |
-        git fetch origin
         git checkout dev
-        git merge origin/master --no-ff -m "Sync changes from master"
+        for file in $(echo "$CHANGED_FILES" | tr '\n' ' '); do
+          git checkout master -- "$file"
+        done
         if ! git diff-index --quiet HEAD; then
-          git commit -m "Sync changes from master to dev"
+          git commit -m "Sync changed files from master to dev"
           git push origin dev
         else
-          echo "No changes to commit for dev branch"
+          echo "No changes to commit"
         fi
