@@ -47,6 +47,11 @@ jobs:
     # 추가된 쉘: master 브랜치의 변경 사항을 test 브랜치에 연동
     - name: Sync master changes to test branch
       run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+          cd /home/ubuntu/dev/telegram-stock-info-bot  # 실제 배포할 프로젝트 경로
         git fetch origin
         git checkout test
         git merge origin/master --allow-unrelated-histories --no-ff -m "Sync changes from master"
@@ -60,6 +65,11 @@ jobs:
     # 추가된 쉘: master 브랜치의 변경 사항을 dev 브랜치에 연동
     - name: Sync master changes to dev branch
       run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+          cd /home/ubuntu/dev/telegram-stock-info-bot  # 실제 배포할 프로젝트 경로
         git fetch origin
         git checkout dev
         git merge origin/master --allow-unrelated-histories --no-ff -m "Sync changes from master"
