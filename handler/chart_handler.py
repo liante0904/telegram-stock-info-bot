@@ -3,7 +3,7 @@ from telegram.ext import CallbackContext
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from module.chart import draw_chart
 from module.recent_searches import save_recent_searches
-from module.naver_stock_util import search_stock
+from module.naver_stock_util import search_stock_code
 
 async def process_selected_stock_for_chart(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     chat_id = update.effective_chat.id
@@ -65,7 +65,7 @@ async def process_generate_chart_stock_list(update: Update, context: CallbackCon
     stock_list = context.user_data.get('stock_list', [])
 
     for stock_name in stock_list:
-        results = search_stock(stock_name)
+        results = search_stock_code(stock_name)
         if results and len(results) == 1:
             stock_name, stock_code = results[0]['name'], results[0]['code']
             await message.reply_text(f"{stock_name}({stock_code}) 차트를 생성 중...")

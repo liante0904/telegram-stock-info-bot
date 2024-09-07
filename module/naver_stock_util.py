@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from sql.kr_isu import select_data as select_sqlite_kr_stock
 
-def search_stock(query):
+def search_stock_code(query):
     url = 'https://ac.stock.naver.com/ac'
     params = {
         'q': query,

@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
-from module.naver_stock_util import search_stock
+from module.naver_stock_util import search_stock_code
 from module.chart import CHART_DIR
 from module.recent_searches import load_recent_searches, show_recent_searches
 from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
@@ -198,7 +198,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             print(stock_list)
             # 종목 검색
             for stock_name in stock_list:
-                results = search_stock(stock_name)
+                results = search_stock_code(stock_name)
                 if results and len(results) == 1:
                     stock_name, stock_code = results[0]['name'], results[0]['code']
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
@@ -401,10 +401,10 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         # 퀀트 데이터 가져오기
                         if stock_code:
-                            stock_info = search_stock(stock_code)
+                            stock_info = search_stock_code(stock_code)
                             quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         elif stock_name:
-                            stock_info = search_stock(stock_name)
+                            stock_info = search_stock_code(stock_name)
                             quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
                         else:
                             quant_data = None
