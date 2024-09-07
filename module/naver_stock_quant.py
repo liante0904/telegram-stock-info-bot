@@ -1,5 +1,4 @@
 import requests
-import requests
 from datetime import datetime, timedelta
 
 def fetch_stock_yield_by_period(stock_code=None, date=None):
