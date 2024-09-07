@@ -49,7 +49,7 @@ jobs:
       run: |
         git fetch origin
         git checkout test
-        git merge origin/master --no-ff -m "Sync changes from master"
+        git merge origin/master --allow-unrelated-histories --no-ff -m "Sync changes from master"
         if ! git diff-index --quiet HEAD; then
           git commit -m "Sync changes from master to test"
           git push origin test
@@ -62,7 +62,7 @@ jobs:
       run: |
         git fetch origin
         git checkout dev
-        git merge origin/master --no-ff -m "Sync changes from master"
+        git merge origin/master --allow-unrelated-histories --no-ff -m "Sync changes from master"
         if ! git diff-index --quiet HEAD; then
           git commit -m "Sync changes from master to dev"
           git push origin dev
