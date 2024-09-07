@@ -2,7 +2,8 @@ import time
 from pykrx import stock
 
 def is_etf(ticker):
-    print('='*10)
+    print(ticker)
+    # print('='*10)
     # 모든 ETF 종목들의 티커 리스트를 가져옵니다.
     etf_tickers = stock.get_etf_ticker_list()
     print(etf_tickers)
