@@ -1,10 +1,9 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
-from module.naver_report_search_pc import search_stock_report
-from module.naver_stock_util import search_stock
+from module.naver_stock_report_search_pc import search_stock_report
+from module.naver_stock_util import search_stock_code
 from module.recent_searches import save_recent_searches
-from module.recent_searches import load_recent_searches, save_recent_searches, show_recent_searches
 
 async def process_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
@@ -12,7 +11,7 @@ async def process_report_request(update: Update, context: CallbackContext, user_
     writeToDate = datetime.today().strftime('%Y-%m-%d')
 
     for stock_name in stock_list:
-        results = search_stock(stock_name)
+        results = search_stock_code(stock_name)
         if results and len(results) == 1:
             stock_name, stock_code = results[0]['name'], results[0]['code']
             await fetch_and_send_reports(update, context, user_id, message, stock_name, stock_code, writeFromDate, writeToDate)

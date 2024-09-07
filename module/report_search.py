@@ -1,11 +1,11 @@
 # report_search.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from module.naver_stock_util import search_stock
+from module.naver_stock_util import search_stock_code
 
 async def search_report(update: Update, context: CallbackContext) -> None:
     user_input = update.message.text.split(' ', 1)[1]  # '/report' 명령어 뒤에 오는 텍스트를 가져옴
-    results = search_stock(user_input)
+    results = search_stock_code(user_input)
 
     if results:
         if len(results) == 1:

@@ -2,7 +2,6 @@ import sqlite3
 import os
 import argparse
 import sys
-from datetime import datetime
 
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
