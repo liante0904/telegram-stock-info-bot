@@ -1,9 +1,8 @@
-# report_handler.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
-from module.naver_report_search_pc import search_stock_report
-from module.stock_search import search_stock
+from module.naver_stock_report_search_pc import search_stock_report
+from module.naver_stock_util import search_stock_code
 from module.recent_searches import save_recent_searches
 
 async def process_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
@@ -12,7 +11,7 @@ async def process_report_request(update: Update, context: CallbackContext, user_
     writeToDate = datetime.today().strftime('%Y-%m-%d')
 
     for stock_name in stock_list:
-        results = search_stock(stock_name)
+        results = search_stock_code(stock_name)
         if results and len(results) == 1:
             stock_name, stock_code = results[0]['name'], results[0]['code']
             await fetch_and_send_reports(update, context, user_id, message, stock_name, stock_code, writeFromDate, writeToDate)
@@ -67,22 +66,17 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
     else:
         await message.reply_text(f"{stock_name}({stock_code})에 대한 레포트를 찾을 수 없습니다.")
 
-async def select_stock(update: Update, context: CallbackContext) -> None:
-    query = update.callback_query
-    await query.answer()
-    selected_code = query.data
-    results = context.user_data.get('search_results', [])
 
-    for result in results:
-        if result['code'] == selected_code:
-            stock_name, stock_code = result['name'], result['code']
-            await fetch_and_send_reports(update, context, str(query.from_user.id), query.message, stock_name, stock_code, context.user_data['writeFromDate'], datetime.today().strftime('%Y-%m-%d'))
+async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+    context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
+    context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
+    await fetch_and_send_reports(update, context, str(update.callback_query.from_user.id), update.callback_query.message, stock_name, stock_code, context.user_data['writeFromDate'], context.user_data['writeToDate'])
 
     # 나머지 종목 처리
     remaining_stocks = context.user_data.get('remaining_stocks', [])
     if remaining_stocks:
         context.user_data['stock_list'] = remaining_stocks
-        await process_report_request(update, context, str(query.from_user.id), query.message)
+        await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
 
 async def previous_search(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
