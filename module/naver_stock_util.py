@@ -3,7 +3,6 @@ import sys
 import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from sql.kr_isu import select_data as select_sqlite_kr_stock
 
 def search_stock_code(query):
@@ -23,14 +22,20 @@ def search_stock_code(query):
     
     # query를 소문자로 변환하여 비교
     query_lower = query.lower()
-    
+        
     # 데이터 항목이 1건이면 필터링 없이 바로 반환
     if len(data['items']) == 1:
         # 반환할 항목을 추출하여 리스트로 포장
         item = data['items'][0]
         result = [{
             'name': item['name'],
-            'code': item['code']
+            'code': item['code'],
+            'typeCode': item['typeCode'],
+            'typeName': item['typeName'],
+            'url': item['url'],
+            'reutersCode': item['reutersCode'],
+            'nationCode': item['nationCode'],
+            'nationName': item['nationName']
         }]
         print(result)
         return result
@@ -39,15 +44,32 @@ def search_stock_code(query):
     filtered_items = [
         {
             'name': item['name'],
-            'code': item['code']
+            'code': item['code'],
+            'typeCode': item['typeCode'],
+            'typeName': item['typeName'],
+            'url': item['url'],
+            'reutersCode': item['reutersCode'],
+            'nationCode': item['nationCode'],
+            'nationName': item['nationName']
         }
         for item in data['items']
-        if item['typeCode'] in ['KOSPI', 'KOSDAQ']
-        and not (40000 <= int(item['code'][0:5]) <= 49999 and '스팩' in item['name'])
-        and (item['code'] == query if is_query_numeric(query) else item['name'].lower() == query_lower) # 종목명 혹은 종목코드 필터링
+        if (item['name'].strip() == str(query).strip() or item['code'] == str(query).strip())
     ]
-    print(filtered_items)
-    return filtered_items
+
+    # 추가 조건을 적용하여 최종 필터링
+    final_filtered_items = [
+        item for item in filtered_items
+        if item['nationCode'] != 'KOR' or (
+            not (40000 <= int(item['code'][0:5]) <= 49999) and 
+            '스팩' not in item['name']
+        )
+    ]
+
+    print(final_filtered_items)
+    return final_filtered_items
+
+
+
 
 def search_stock_code_mobileAPI(query):
     # 1-1. select_sqlite_kr_stock을 통해 데이터를 조회
@@ -97,6 +119,7 @@ def main():
     r = search_stock_code_mobileAPI('aapl')
     if r:
         print('0===>', r)
+        
     else:
         print('No results found.')
 
