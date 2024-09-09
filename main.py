@@ -412,6 +412,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         # 각 종목 갱신 메시지 업데이트
                         if quant_data:
                             for key, value in quant_data.items():
+                                print(f'key{key}==== {value}')
                                 if key == '비고(메모)': value = row.get('비고(메모)')
                                 elif key == '분류': value = row.get('분류')
                                 df.at[index, key] = value
@@ -444,23 +445,31 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-            # 필터 및 하이퍼링크 처리
+            # 엑셀 파일을 로드하여 데이터가 있는 시트들을 순회합니다.
             wb = load_workbook(updated_file_name)
             for sheet_name in sheet_names:
                 ws = wb[sheet_name]
                 
+                # 자동 필터 설정: 데이터가 있는 첫 행과 마지막 행, 열을 기준으로 필터를 적용합니다.
                 start_row, start_col = 1, 1
-                end_row = ws.max_row  # 실제 데이터가 있는 마지막 행을 가져옴
-                end_col = ws.max_column  # 실제 데이터가 있는 마지막 열을 가져옴
+                end_row = ws.max_row  # 실제 데이터가 있는 마지막 행
+                end_col = ws.max_column  # 실제 데이터가 있는 마지막 열
+                
+                # 데이터 범위에 대한 셀 범위를 정의하여 필터를 적용합니다.
                 cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
                 ws.auto_filter.ref = cell_range
 
+                # 열 순서 변경 방지: 각 셀에 대해 하이퍼링크 처리를 하되, 열 순서를 그대로 유지합니다.
                 for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=1, max_col=end_col):
                     for cell in row:
-                        if cell.value and '네이버url' in df.columns and cell.column == df.columns.get_loc('네이버url') + 1:
-                            cell.hyperlink = cell.value
-                            cell.font = Font(color="0000FF", underline="single")
+                        # '네이버url' 열에 대해서만 하이퍼링크를 적용합니다. 열 순서는 그대로 유지되도록 보장합니다.
+                        if cell.value and '네이버url' in df.columns:
+                            # '네이버url' 열의 인덱스는 데이터프레임의 열 순서를 기준으로 계산됩니다.
+                            if cell.column == df.columns.get_loc('네이버url') + 1:
+                                cell.hyperlink = cell.value  # 셀의 값이 URL이면 하이퍼링크를 적용
+                                cell.font = Font(color="0000FF", underline="single")  # 하이퍼링크 스타일 적용
 
+            # 파일 저장 후 워크북을 닫습니다.
             wb.save(updated_file_name)
             wb.close()
 
