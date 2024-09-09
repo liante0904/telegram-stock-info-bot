@@ -1,10 +1,11 @@
-from telegram import Update, BotCommand, InputFile
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 import os
 import pandas as pd
 import asyncio
 import re
 import json
+import time
+from telegram import Update, BotCommand, InputFile
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from module.naver_stock_util import search_stock_code
@@ -24,6 +25,7 @@ COMMAND_LIST = [
     ("recent", "최근 검색 종목"),
     ("search_report", "레포트 검색기"),
     ("upjong_quant", "네이버 업종퀀트"),
+    ("dividend_quant", "배당퀀트"),
     ("stock_quant", "종목 퀀트"),
     ("excel_quant", "엑셀 퀀트"),
     ("report_alert_keyword", "레포트 알림 키워드 설정")
@@ -45,6 +47,11 @@ async def stock_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='종목 & ETF 퀀트입니다. \n\n 종목명 혹은 종목코드를 입력하세요.(ETF가능) \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
     context.user_data['next_command'] = 'stock_quant'
+
+async def dividend_quant(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(chat_id=chat_id, text='배당 퀀트입니다. \n\n 종목명 혹은 종목코드를 입력하세요.(ETF가능) \n 쉼표(,) 혹은 여러줄로 입력하면 다중생성이 가능합니다. \n 종목코드로 입력시 더 빠름')
+    context.user_data['next_command'] = 'dividend_quant'
 
 async def excel_quant(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -324,6 +331,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
         
         else:
+            await context.bot.send_message(chat_id=chat_id, text="현재 개발중일 수 있음.")
+            time.sleep(1)
             await show_commands(update, context)
     except FileNotFoundError:
         await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
@@ -468,6 +477,7 @@ def main():
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("upjong_quant", show_upjong_list))  # 업종 목록 표시
+    application.add_handler(CommandHandler("dividend_quant", dividend_quant))  
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
     application.add_handler(CommandHandler("excel_quant", excel_quant))
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
