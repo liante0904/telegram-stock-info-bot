@@ -20,6 +20,6 @@ async def show_upjong_list(update: Update, context: CallbackContext) -> None:
         upjong_message += "\n업종 번호 혹은 업종명\\(정확하게\\) 입력하세요\\."
         context.user_data['upjong_map'] = upjong_map  # 업종 맵을 저장하여 나중에 사용할 수 있게 함
         await context.bot.send_message(chat_id=chat_id, text=upjong_message, parse_mode='MarkdownV2')
-        context.user_data['next_command'] = 'naver_upjong_quant'
+        context.user_data['next_command'] = 'upjong_quant'
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"업종 목록을 가져오는 중 오류가 발생했습니다: {e}")
