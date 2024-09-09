@@ -58,7 +58,11 @@ class CacheManager:
         # 평일이고 09시~16시 30분 사이임에도 market_status가 CLOSE라면 휴장일로 처리
         if day_of_week < 5 and time(9, 0) <= now.time() <= close_time and market_status == 'CLOSE':
             print("[DEBUG] 휴장일로 추정됩니다.")
-            print("[DEBUG] 평일 장운영시간 이지만 [장마감상태].")
+            # 주말인지 평일인지에 따른 메시지 출력
+            if day_of_week < 4:
+                print("[DEBUG] 평일 장운영시간 이지만 [장마감상태].")
+            else:
+                print("[DEBUG] 주말 장운영시간 이지만 [장마감상태].")
             # 전일 16:30 이후 생성된 캐시를 유효하게 처리
             last_trading_day = now - timedelta(days=1)
             # 만약 휴장이 월요일이라면, 금요일로 돌아가서 처리
