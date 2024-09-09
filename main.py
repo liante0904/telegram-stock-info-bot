@@ -5,26 +5,36 @@ import pandas as pd
 import asyncio
 import re
 import json
-from openpyxl import load_workbook
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Font
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from module.naver_stock_util import search_stock_code
 from module.chart import CHART_DIR
 from module.recent_searches import load_recent_searches, show_recent_searches
+from module.excel_util import process_excel_file
+
 from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
 from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
 from handler.quant_handler import process_selected_stock_for_quant
 from handler.upjong_handler import show_upjong_list
 from datetime import datetime, timedelta
 
+# 명령어와 설명을 튜플 형태로 저장한 리스트 (전역 변수)
+COMMAND_LIST = [
+    ("generate_chart", "수급오실레이터 차트"),
+    ("recent", "최근 검색 종목"),
+    ("search_report", "레포트 검색기"),
+    ("upjong_quant", "네이버 업종퀀트"),
+    ("stock_quant", "종목 퀀트"),
+    ("excel_quant", "엑셀 퀀트"),
+    ("report_alert_keyword", "레포트 알림 키워드 설정")
+]
 
 # JSON 파일 경로
 KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 # Define the folder path
 CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
 EXCEL_FOLDER_PATH = 'excel/'  # Adjust this to your actual folder path if needed
+JSON_DIR = 'json/'  # Adjust this to your actual folder path if needed
 
 async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -113,17 +123,19 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code)
 
+# set_commands 함수
 async def set_commands(bot):
-    commands = [
-        BotCommand("generate_chart", "수급오실레이터 차트"),
-        BotCommand("recent", "최근 검색 종목"),
-        BotCommand("search_report", "레포트 검색기"),
-        BotCommand("naver_upjong_quant", "네이버 업종퀀트"),  # 새로 추가된 명령어
-        BotCommand("stock_quant", "종목 퀀트"),  # 새로 추가된 명령어
-        BotCommand("excel_quant", "엑셀 퀀트"),  # 새로 추가된 명령어
-        BotCommand("report_alert_keyword", "레포트 알림 키워드 설정")
-    ]
+    commands = [BotCommand(command, description) for command, description in COMMAND_LIST]
     await bot.set_my_commands(commands)
+
+# show_commands 함수
+async def show_commands(update, context):
+    """사용자가 /help 명령어를 입력했을 때 명령어 목록을 보여줍니다."""
+    commands_text = "사용 가능한 명령어 목록:\n"
+    for command, description in COMMAND_LIST:
+        commands_text += f"/{command} - {description}\n"
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=commands_text)
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -261,7 +273,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 else:
                     await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
         
-        else:
+        elif next_command == 'upjong_quant':
             # 업종 검색 처리
             upjong_list = fetch_upjong_list_API()
             upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
@@ -297,33 +309,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     with pd.ExcelWriter(excel_file_name, engine='openpyxl') as writer:
                         df.to_excel(writer, sheet_name=업종명, index=False)
 
-                    # 필터 기능 추가 및 하이퍼링크 처리
-                    wb = load_workbook(excel_file_name)
-                    ws = wb[업종명]
-                        
-                    # 필터 범위 지정
-                    start_row, start_col = 1, 1
-                    # end_row, end_col = df.shape[0] + 1, df.shape[1]
-                    end_row = ws.max_row  # 실제 데이터가 있는 마지막 행을 가져옴
-                    end_col = ws.max_column  # 실제 데이터가 있는 마지막 열을 가져옴
-                    cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
-                    ws.auto_filter.ref = cell_range  # 필터 범위 지정
-
-                    # '네이버url' 열의 하이퍼링크 처리
-                    if '네이버url' in df.columns:
-                        nav_url_col_index = df.columns.get_loc('네이버url') + 1  # 1-based index
-                        for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=nav_url_col_index, max_col=nav_url_col_index):
-                            for cell in row:
-                                if cell.value:
-                                    cell.hyperlink = cell.value
-                                    cell.font = Font(color="0000FF", underline="single")
-
-                    # 엑셀 파일 저장
-                    wb.save(excel_file_name)
-                    wb.close()
+                    process_excel_file(excel_file_name, df)
 
                     print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
-
 
                     if os.path.exists(excel_file_name):
                         with open(excel_file_name, 'rb') as file:
@@ -334,7 +322,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
             else:
                 await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
-    
+        
+        else:
+            await show_commands(update, context)
     except FileNotFoundError:
         await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
     except IOError as e:
@@ -375,14 +365,13 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                 updated_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{caption}_{chat_id}_{today_date}_{counter}.xlsx')
 
             # 최초 메시지 전송
-            message = await context.bot.send_message(chat_id=chat_id, text="처리 중...")
+            message = await context.bot.send_message(chat_id=chat_id, text="엑셀 퀀트 갱신 처리 중...")
             with pd.ExcelWriter(updated_file_name, engine='openpyxl') as writer:
                 for sheet_name in sheet_names:
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
                     update_message += f"============\n시트 이름: {sheet_name}\n"
 
                     stock_update_count = 0  # 갱신된 종목 수를 세기 위한 변수
-                    temp_update_messages = []  # 갱신 중 메시지를 저장할 리스트
 
                     for index, row in df.iterrows():
                         naver_url = row.get('네이버url')
@@ -417,16 +406,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                                 df.at[index, key] = value
 
                             stock_update_count += 1  # 갱신된 종목 수 증가
-                            
-                            # # 메시지 수정
-                            # temp_update_messages.append(f"   [{stock_name}] 퀀트 데이터 갱신 중..\n")
-                            
-                            # try:
-                            #     # 메시지 간에 1초 대기
-                            #     await asyncio.sleep(1.5)
-                            #     await context.bot.edit_message_text(chat_id=chat_id, message_id=message.message_id, text=update_message + ''.join(temp_update_messages))
-                            # except Exception as e:
-                            #     print(f"메시지 수정 중 오류 발생: {e}")
 
                     # 시트 갱신 완료 메시지 추가
                     if stock_update_count > 0:
@@ -444,39 +423,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-            # 엑셀 파일을 로드, 데이터가 있는 시트들을 순회합니다.
-            wb = load_workbook(updated_file_name)
-            for sheet_name in sheet_names:
-                ws = wb[sheet_name]
-                
-                # 첫 번째 행(타이틀 행)을 기준으로 각 열의 너비를 조정
-                for col in range(1, ws.max_column + 1):
-                    # 첫 번째 행의 셀 값을 가져와서 글자 수를 기준으로 너비 설정
-                    cell_value = ws.cell(row=1, column=col).value
-                    if cell_value:
-                        # 글자 수에 여유를 주어 열 너비를 설정 (글자 수 * 1.2 정도로 여유 설정)
-                        adjusted_width = len(str(cell_value)) * 4
-                        ws.column_dimensions[get_column_letter(col)].width = adjusted_width
-
-                # 자동 필터 적용 (앞서 작성한 필터 및 하이퍼링크 처리 코드와 동일)
-                start_row, start_col = 1, 1
-                end_row = ws.max_row  # 실제 데이터가 있는 마지막 행
-                end_col = ws.max_column  # 실제 데이터가 있는 마지막 열
-                
-                cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
-                ws.auto_filter.ref = cell_range
-
-                # 하이퍼링크 처리
-                for row in ws.iter_rows(min_row=2, max_row=end_row, min_col=1, max_col=end_col):
-                    for cell in row:
-                        if cell.value and '네이버url' in df.columns:
-                            if cell.column == df.columns.get_loc('네이버url') + 1:
-                                cell.hyperlink = cell.value
-                                cell.font = Font(color="0000FF", underline="single")
-
-            # 파일 저장 후 워크북 닫기
-            wb.save(updated_file_name)
-            wb.close()
+            process_excel_file(updated_file_name, df)
 
             # 모든 작업이 완료된 후 최종 메시지 수정
             update_message += "============\n엑셀 데이터 전송 완료"
@@ -503,12 +450,6 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
 
-# 엑셀 셀 주소 변환 함수
-def number_to_coordinate(rc):
-    row_idx, col_idx = rc[0], rc[1]
-    col_string = get_column_letter(col_idx)
-    return f'{col_string}{row_idx}'
-
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -526,7 +467,7 @@ def main():
     application.add_handler(CommandHandler("generate_chart", generate_chart))  # /generate_chart 명령어 추가
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
     application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
-    application.add_handler(CommandHandler("naver_upjong_quant", show_upjong_list))  # 업종 목록 표시
+    application.add_handler(CommandHandler("upjong_quant", show_upjong_list))  # 업종 목록 표시
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
     application.add_handler(CommandHandler("excel_quant", excel_quant))
     application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
@@ -549,4 +490,6 @@ def main():
 if __name__ == '__main__':
     if not os.path.exists(CHART_DIR):
         os.makedirs(CHART_DIR)
+        os.makedirs(JSON_DIR)
+        
     main()
