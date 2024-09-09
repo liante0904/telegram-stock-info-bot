@@ -109,7 +109,6 @@ def fetch_upjong_list_API():
     
     return result
 
-
 def fetch_stock_info_in_upjong(upjong_link):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -188,13 +187,14 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
     
     stock_basic_data = api_response.json()
 
-    # 현재 장운영 상태 확인
-    market_status = stock_basic_data.get('marketStatus', 'N/A')
-    if market_status == 'CLOSE':
-        print("[DEBUG] 현재 마켓이 폐장 상태입니다.")
+    # # 현재 장운영 상태 확인
+    # market_status = stock_basic_data.get('marketStatus', 'N/A')
+    # if market_status == 'CLOSE':
+    #     print("[DEBUG] 현재 마켓이 폐장 상태입니다.")
     
     data = {
         '종목명': stock_basic_data.get('stockName', 'N/A'),
+        '시장구분': stock_basic_data.get('stockExchangeType', {}).get('nameEng', 'N/A'),
         '현재가': safe_int(stock_basic_data.get('closePrice', 'N/A')),
         '전일비': safe_int(stock_basic_data.get('compareToPreviousClosePrice', 'N/A')),
         '등락률': stock_basic_data.get('fluctuationsRatio', 'N/A')
@@ -281,6 +281,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
     
     ordered_data = {
         '종목명': data.get('종목명', 'N/A'),
+        '시장구분': data.get('시장구분', 'N/A'),
         'PER': data.get('PER', 'N/A'),
         'fwdPER': data.get('fwdPER', 'N/A'),
         'PBR': data.get('PBR', 'N/A'),
