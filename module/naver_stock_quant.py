@@ -1,4 +1,5 @@
 import requests
+import json
 from datetime import datetime, timedelta
 
 def fetch_stock_yield_by_period(stock_code=None, date=None):
@@ -74,6 +75,48 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
     returns = {key: calculate_return(fetch_past_price(days)) for key, days in timeframes.items()}
 
     return returns
+
+
+def fetch_dividend_total_stock_count():
+    base_url = "https://m.stock.naver.com/api/stocks/dividend/rate"
+    params = {
+        'page': 1,
+        'pageSize': 2  # 이해를 위해 pageSize는 2로 설정
+    }
+    
+    response = requests.get(base_url, params=params)
+    
+    if response.status_code == 200:
+        data = response.json()
+        total_count = data.get('totalCount', 0)
+        return total_count
+    else:
+        print("Total count를 가져오는 데 실패했습니다.")
+        return 0
+
+def fetch_dividend_data(total_count, page_size=100):
+    base_url = "https://m.stock.naver.com/api/stocks/dividend/rate"
+    dividends = []
+    page = 1
+
+    while (page - 1) * page_size < total_count:
+        params = {
+            'page': page,
+            'pageSize': page_size
+        }
+        response = requests.get(base_url, params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            dividends.extend(data.get('dividends', []))
+            print(f"페이지 {page}에서 {len(data.get('dividends', []))}개의 데이터를 가져왔습니다.")
+        else:
+            print(f"페이지 {page}를 가져오는 데 실패했습니다.")
+            break
+        
+        page += 1
+    
+    return dividends
 
 
 def main():
