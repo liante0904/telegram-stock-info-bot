@@ -27,7 +27,6 @@ class CacheManager:
         with open(cache_file, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False)
 
-
     def is_cache_valid(self, stock_code):
         # 타임존 설정
         kst = pytz.timezone('Asia/Seoul')
@@ -39,7 +38,21 @@ class CacheManager:
         market_status = check_market_status(market='KOSPI')
 
         # 1. 장중일 경우 캐시는 유효하지 않음
-        if market_status != 'CLOSE':
+        if market_status == 'CLOSE':
+            # 장마감 상태일 때는 캐시 유효성 검사
+            print("[DEBUG] 장마감 상태입니다.")
+        elif market_status == 'OPEN':
+            # 장중 상태일 경우 캐시 유효성을 체크
+            cache_file = self._get_cache_file_path(stock_code)
+
+            if os.path.exists(cache_file):
+                file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
+                # 파일이 생성된 후 5분 이내인지 확인
+                if (now - file_mod_time) < timedelta(minutes=5):
+                    print(f"[DEBUG] 장중이며 5분 이내 생성된 캐시가 있습니다. 유효 처리됩니다. (생성 시각: {file_mod_time})")
+                    return True
+
+            # 장중이지만 캐시는 유효하지 않음
             return False
 
         # 2. 우선 캐시의 생성시간을 가져온다.
@@ -53,7 +66,7 @@ class CacheManager:
 
         # 16:30 설정
         close_time = time(16, 30)
-        
+
         # 3. 휴장일 예외 처리
         # 평일이고 09시~16시 30분 사이임에도 market_status가 CLOSE라면 휴장일로 처리
         if day_of_week < 5 and time(9, 0) <= now.time() <= close_time and market_status == 'CLOSE':
