@@ -1,6 +1,9 @@
 import requests
-import json
+import os
+import sys
 from datetime import datetime, timedelta
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from module.cache_manager import CacheManager
 
 def fetch_stock_yield_by_period(stock_code=None, date=None):
     # stock_code가 제공되지 않았을 때 에러 처리
@@ -76,48 +79,32 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
 
     return returns
 
+def fetch_dividend_stock_list_API(page=1, pageSize=100):
+    # CacheManager 인스턴스 생성
+    cache_manager = CacheManager("cache", "dividend_stock")
 
-def fetch_dividend_total_stock_count():
-    base_url = "https://m.stock.naver.com/api/stocks/dividend/rate"
-    params = {
-        'page': 1,
-        'pageSize': 2  # 이해를 위해 pageSize는 2로 설정
-    }
-    
-    response = requests.get(base_url, params=params)
-    
-    if response.status_code == 200:
-        data = response.json()
-        total_count = data.get('totalCount', 0)
-        return total_count
-    else:
-        print("Total count를 가져오는 데 실패했습니다.")
-        return 0
+    # 캐시 키를 페이지별로 구분하여 설정
+    cache_key = f'dividend_stock_{page}'
 
-def fetch_dividend_data(total_count, page_size=100):
-    base_url = "https://m.stock.naver.com/api/stocks/dividend/rate"
-    dividends = []
-    page = 1
+    # 캐시가 유효한지 확인
+    if cache_manager.is_cache_valid(cache_key):
+        print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {page})")
+        return cache_manager.load_cache(cache_key)
 
-    while (page - 1) * page_size < total_count:
-        params = {
-            'page': page,
-            'pageSize': page_size
-        }
-        response = requests.get(base_url, params=params)
-        
-        if response.status_code == 200:
-            data = response.json()
-            dividends.extend(data.get('dividends', []))
-            print(f"페이지 {page}에서 {len(data.get('dividends', []))}개의 데이터를 가져왔습니다.")
-        else:
-            print(f"페이지 {page}를 가져오는 데 실패했습니다.")
-            break
-        
-        page += 1
-    
-    return dividends
+    print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {page})")
+    # API 호출 URL
+    url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={page}&pageSize={pageSize}"
+    response = requests.get(url)
 
+    if response.status_code != 200:
+        raise Exception(f"API 요청 실패: {response.status_code}")
+
+    data = response.json()
+
+    # 데이터를 캐시에 저장 (페이지별로 구분)
+    cache_manager.save_cache(cache_key, data)
+
+    return data
 
 def main():
     fetch_stock_yield_by_period('005930')
