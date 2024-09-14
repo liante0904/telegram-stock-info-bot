@@ -1,7 +1,6 @@
 import requests
 import os
 import sys
-from datetime import datetime, timedelta
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.cache_manager import CacheManager
 from module.naver_upjong_quant import fetch_stock_info_quant_API
@@ -100,7 +99,7 @@ def save_stock_data_to_excel(data, file_name='dividend_stock_data.xlsx'):
     
     # 데이터 추가
     for row in dataframe_to_rows(df, index=False, header=False):
-        ws.append(row)
+        # ws.append(row)
         # itemCode 값을 출력
         item_code_index = df.columns.get_loc('itemCode')
         stock_code = row[item_code_index]
