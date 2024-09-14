@@ -4,110 +4,147 @@ import sys
 from datetime import datetime, timedelta
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.cache_manager import CacheManager
+from module.naver_upjong_quant import fetch_stock_info_quant_API
 
-def fetch_stock_yield_by_period(stock_code=None, date=None):
-    # stock_code가 제공되지 않았을 때 에러 처리
-    if not stock_code:
-        print("Error: stock_code is required but was not provided.")
-        return {"error": "stock_code is required"}
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
-    def fetch_data(url):
-        # print(f"Fetching data from: {url}")  # Debugging message
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Failed to fetch data: Status code {response.status_code}")
-            return None
-
-    # 현재 가격 가져오기
-    basic_info_url = f'https://m.stock.naver.com/api/stock/{stock_code}/basic'
-    basic_data = fetch_data(basic_info_url)
-
-    if not basic_data:
-        return {}
-
-    current_price = int(basic_data['closePrice'].replace(',', ''))
-
-    # 날짜별 가격 가져오기
-    def fetch_past_price(days_ago):
-        past_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y%m%d')
-        original_date = datetime.strptime(past_date, '%Y%m%d')
-        one_week_ago = original_date - timedelta(weeks=1)
-
-        while True:
-            trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={past_date}0000&endDateTime={past_date}0000'
-            trend_data = fetch_data(trend_url)
-            
-            if trend_data and len(trend_data) > 0:
-                return int(trend_data[0]['closePrice'])
-            
-            # 날짜를 하루 전으로 이동
-            original_date -= timedelta(days=1)
-            past_date = original_date.strftime('%Y%m%d')
-            
-            # 일주일 이내로 제한
-            if original_date < one_week_ago:
-                break
-        
-        return None
-
-
-    # 수익률 계산
-    def calculate_return(past_price):
-        if past_price is not None:
-            percentage_change = round((current_price / past_price - 1) * 100, 2)
-            return "{:.2f}".format(percentage_change)
-        return None
-
-    # 1D, 1M, 6M, YTD, 1Y 수익률 계산
-    timeframes = {
-        '1D': 1,
-        '1W': 7,
-        '1M': 30,
-        '3M': 90,        
-        '6M': 180,
-        'YTD': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
-        '1Y': 365
-    }
-
-    returns = {key: calculate_return(fetch_past_price(days)) for key, days in timeframes.items()}
-
-    return returns
+import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
+import pandas as pd
 
 def fetch_dividend_stock_list_API(page=1, pageSize=100):
     # CacheManager 인스턴스 생성
     cache_manager = CacheManager("cache", "dividend_stock")
+    
+    # 전체 데이터를 담을 리스트
+    all_data = []
 
-    # 캐시 키를 페이지별로 구분하여 설정
-    cache_key = f'dividend_stock_{page}'
+    # 페이지가 0이거나 지정되지 않은 경우 전체 페이지를 패치
+    if page <= 0:
+        # 첫 페이지 호출하여 전체 페이지 수를 알아냄
+        first_page_url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page=1&pageSize={pageSize}"
+        response = requests.get(first_page_url)
 
-    # 캐시가 유효한지 확인
-    if cache_manager.is_cache_valid(cache_key):
-        print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {page})")
-        return cache_manager.load_cache(cache_key)
+        if response.status_code != 200:
+            raise Exception(f"API 요청 실패: {response.status_code}")
 
-    print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {page})")
-    # API 호출 URL
-    url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={page}&pageSize={pageSize}"
-    response = requests.get(url)
+        first_page_data = response.json()
+        total_count = first_page_data.get('totalCount', 0)
+        total_pages = (total_count // pageSize) + (1 if total_count % pageSize > 0 else 0)
 
-    if response.status_code != 200:
-        raise Exception(f"API 요청 실패: {response.status_code}")
+        # 전체 페이지를 순회하며 데이터 수집
+        for p in range(1, total_pages + 1):
+            # 캐시 키를 페이지별로 구분하여 설정
+            cache_key = f'dividend_stock_{p}'
 
-    data = response.json()
+            # 캐시가 유효한지 확인
+            if cache_manager.is_cache_valid(cache_key):
+                print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
+                data = cache_manager.load_cache(cache_key)
+            else:
+                print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
+                # API 호출 URL
+                url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={p}&pageSize={pageSize}"
+                response = requests.get(url)
 
-    # 데이터를 캐시에 저장 (페이지별로 구분)
-    cache_manager.save_cache(cache_key, data)
+                if response.status_code != 200:
+                    raise Exception(f"API 요청 실패: {response.status_code}")
 
-    return data
+                data = response.json()
+
+                # 데이터를 캐시에 저장
+                cache_manager.save_cache(cache_key, data)
+
+            # 수집된 데이터를 리스트에 추가
+            all_data.extend(data.get('dividends', []))  # 'dividends' 키로 데이터 추출
+
+    else:
+        # 지정된 페이지까지 반복하여 데이터를 수집
+        for p in range(1, page + 1):
+            # 캐시 키를 페이지별로 구분하여 설정
+            cache_key = f'dividend_stock_{p}'
+
+            # 캐시가 유효한지 확인
+            if cache_manager.is_cache_valid(cache_key):
+                print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
+                data = cache_manager.load_cache(cache_key)
+            else:
+                print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
+                # API 호출 URL
+                url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={p}&pageSize={pageSize}"
+                response = requests.get(url)
+
+                if response.status_code != 200:
+                    raise Exception(f"API 요청 실패: {response.status_code}")
+
+                data = response.json()
+
+                # 데이터를 캐시에 저장
+                cache_manager.save_cache(cache_key, data)
+
+            # 수집된 데이터를 리스트에 추가
+            all_data.extend(data.get('dividends', []))  # 'dividends' 키로 데이터 추출
+
+    return all_data
+
+def save_stock_data_to_excel(data, file_name='dividend_stock_data.xlsx'):
+    # 데이터 프레임으로 변환
+    df = pd.DataFrame(data, columns=['stockName', 'itemCode', 'dividendRate'])
+    
+    # 엑셀 파일 생성
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Dividend Stock Data'
+    
+    # 헤더 추가
+    headers = ['종목명', '종목코드', '배당수익률', '시장구분', 'PER', 'fwdPER', 'PBR', '예상배당수익률', 'ROE', '현재가', '전일비', '등락률', '비고(메모)', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '네이버url']
+    ws.append(headers)
+    
+    # 데이터 추가
+    for row in dataframe_to_rows(df, index=False, header=False):
+        ws.append(row)
+        # itemCode 값을 출력
+        item_code_index = df.columns.get_loc('itemCode')
+        stock_code = row[item_code_index]
+        
+        # fetch_stock_info_quant_API 호출 및 데이터 추가
+        stock_info = fetch_stock_info_quant_API(stock_code=stock_code)
+        
+        # 데이터 추가
+        info_row = [
+            stock_info['종목명'],
+            stock_info['종목코드'],
+            stock_info['배당수익률'],
+            stock_info['시장구분'],
+            stock_info['PER'],
+            stock_info['fwdPER'],
+            stock_info['PBR'],
+            stock_info['예상배당수익률'],
+            stock_info['ROE'],
+            stock_info['현재가'],
+            stock_info['전일비'],
+            stock_info['등락률'],
+            stock_info['비고(메모)'],
+            stock_info['1D'],
+            stock_info['1W'],
+            stock_info['1M'],
+            stock_info['3M'],
+            stock_info['6M'],
+            stock_info['YTD'],
+            stock_info['1Y'],
+            stock_info['네이버url']
+        ]
+        ws.append(info_row)
+    
+    # 파일 저장
+    wb.save(file_name)
+    print(f"[INFO] 엑셀 파일 '{file_name}'이 저장되었습니다.")
 
 def main():
-    fetch_stock_yield_by_period('005930')
+    all_data = []
+    # fetch_stock_yield_by_period('005930')
+    # 수집된 데이터를 리스트에 추가
+    all_data = fetch_dividend_stock_list_API(page=3)
+    # 엑셀 파일로 저장
+    save_stock_data_to_excel(all_data)
 
 if __name__ == '__main__':
     main()
