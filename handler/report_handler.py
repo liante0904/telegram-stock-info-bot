@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
-from module.naver_stock_report_search_pc import search_stock_report
+from module.naver_stock_report import search_stock_report_pc
 from module.naver_stock_util import search_stock_code
 from module.recent_searches import save_recent_searches
 
@@ -38,7 +38,7 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
         context.bot_data['recent_searches'][user_id].append({'name': stock_name, 'code': stock_code})
     save_recent_searches(context.bot_data['recent_searches'])
 
-    report_results = search_stock_report(stock_name, stock_code, writeFromDate, writeToDate)
+    report_results = search_stock_report_pc(stock_name, stock_code, writeFromDate, writeToDate)
     if report_results:
         # 발간일을 기준으로 오름차순 정렬
         report_results.sort(key=lambda x: x['date'])
