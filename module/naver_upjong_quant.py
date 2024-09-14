@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import pandas as pd  # pandas를 추가합니다
 from module.cache_manager import CacheManager
 
-from module.naver_stock_quant import fetch_stock_yield_by_period
+from module.naver_stock_util import fetch_stock_yield_by_period
 from datetime import datetime
 
 def fetch_upjong_list_API():
