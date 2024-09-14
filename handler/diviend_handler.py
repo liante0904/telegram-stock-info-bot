@@ -1,7 +1,10 @@
+import os
+import sys
 from telegram import Update
 from telegram.ext import CallbackContext
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.naver_stock_quant import fetch_dividend_stock_list_API
-
+from module.naver_stock_util import calculate_page_count
 
 
 async def send_dividend_stock_excel_quant(update: Update, context: CallbackContext) -> None:
@@ -21,16 +24,20 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
         # 입력된 값이 숫자인지 확인
         if user_message.isdigit():
             requested_stock_count = int(user_message)
+            # 페이지 수 계산 (1페이지당 100개 기준)
+            page_count = calculate_page_count(requested_count=requested_stock_count)
         else:
+            page_count = 0
             requested_stock_count = 0  # 숫자가 아닌 경우 전체 종목 전송
 
         # 입력된 종목 수가 전체 배당 종목 수 범위 내인지 확인
-        if 1 <= requested_stock_count <= dividend_total_stock_count:
+        if 1 <= requested_stock_count <= requested_stock_count:  # requested_stock_count를 기준으로 비교
             await context.bot.send_message(
                 chat_id=chat_id, 
                 text=f"*{requested_stock_count}*개의 종목을 전송합니다\\.",
                 parse_mode='MarkdownV2'
             )
+            print(f"요청된 종목 수: {requested_stock_count}, 페이지 수: {page_count}")
             # 요청된 수 만큼 종목 전송 로직 추가 (필요 시 함수 호출)
         else:
             await context.bot.send_message(
@@ -38,6 +45,7 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
                 text=f"*전체 종목*을 전송합니다\\.",
                 parse_mode='MarkdownV2'
             )
+            print(f"전체 종목 전송: 페이지 수는 {page_count}")
             # 전체 종목 전송 로직 추가 (필요 시 함수 호출)
     except Exception as e:
         await context.bot.send_message(

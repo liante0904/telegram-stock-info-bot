@@ -46,7 +46,6 @@ def check_market_status(market):
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN'
 
-
 def search_stock_code(query):
     url = 'https://ac.stock.naver.com/ac'
     params = {
@@ -154,6 +153,22 @@ def search_stock_code_mobileAPI(query):
             return data['result']['items']
         else:
             return []
+
+import math
+
+def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
+    """
+    페이지 수를 계산하는 함수.
+    
+    :param requested_count: 요청된 종목 수
+    :param page_size: 한 페이지당 종목 수 (기본값: 100)
+    :return: 필요한 페이지 수
+    """
+    if requested_count <= 0:
+        raise ValueError("요청 수는 양수여야 합니다.")
+    
+    # 페이지 수 계산 (ceil 사용하여 올림 처리)
+    return math.ceil(requested_count / page_size)
 
 def main():
     r = search_stock_code_mobileAPI('aapl')
