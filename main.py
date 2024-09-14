@@ -39,6 +39,7 @@ KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
 EXCEL_FOLDER_PATH = 'excel/'  # Adjust this to your actual folder path if needed
 JSON_DIR = 'json/'  # Adjust this to your actual folder path if needed
+CHART_DIR = "chart/"
 
 async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -95,7 +96,7 @@ async def send_dividend_total_stock_count(update: Update, context: CallbackConte
     try:
         # 국내 배당 종목 수를 가져옴
         dividend_data = fetch_dividend_stock_list_API()
-        dividend_total_stock_count = dividend_data.get('totalCount', 0)  # totalCount 추출, 없을 경우 기본값 0
+        dividend_total_stock_count = dividend_data[0].get('totalCount', 0)  # totalCount 추출, 없을 경우 기본값 0
         dividend_message = (
             f"*국내 배당 종목 수는 {dividend_total_stock_count}개입니다\\.*\n\n"
             "필요한 *종목 수*를 전송해주세요\\.\n\n"

@@ -25,7 +25,7 @@ class CacheManager:
     def save_cache(self, stock_code, data):
         cache_file = self._get_cache_file_path(stock_code)
         with open(cache_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False)
+            json.dump(data, file, ensure_ascii=False, indent=4)
 
     def is_cache_valid(self, stock_code):
         # 타임존 설정

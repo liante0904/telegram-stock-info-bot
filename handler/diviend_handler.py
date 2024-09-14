@@ -1,12 +1,17 @@
 import os
 import sys
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.ext import CallbackContext
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from module.naver_stock_quant import fetch_dividend_stock_list_API
+from module.naver_stock_quant import fetch_dividend_stock_list_API, save_stock_data_to_excel
 from module.naver_stock_util import calculate_page_count
 
+from datetime import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env 파일의 환경 변수를 로드합니다
+today_date = datetime.today().strftime('%y%m%d')
 async def send_dividend_stock_excel_quant(update: Update, context: CallbackContext) -> None:
     try:
         user_id = str(update.effective_user.id)
@@ -15,8 +20,8 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
         next_command = context.user_data.get('next_command')
         
         # API 호출하여 전체 배당 종목 수 가져오기
-        dividend_data = fetch_dividend_stock_list_API(page=1, pageSize=1)  # pageSize=1로 최소 데이터 호출
-        dividend_total_stock_count = dividend_data.get('totalCount', 0)
+        # dividend_data = fetch_dividend_stock_list_API(page=1, pageSize=1)  # pageSize=1로 최소 데이터 호출
+        # dividend_total_stock_count = dividend_data[0].get('totalCount', 0)
 
         # 사용자의 응답을 기다림
         user_message = user_input.strip()
@@ -38,7 +43,15 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
                 parse_mode='MarkdownV2'
             )
             print(f"요청된 종목 수: {requested_stock_count}, 페이지 수: {page_count}")
-            # 요청된 수 만큼 종목 전송 로직 추가 (필요 시 함수 호출)
+            # 수집된 데이터를 리스트에 추가
+            all_data = fetch_dividend_stock_list_API(page=page_count)
+            # 엑셀 파일로 저장
+            excel_file_name = os.path.join(os.getenv('EXCEL_FOLDER_PATH'), f'dividend_naver_quant_{today_date}.xlsx')
+            save_stock_data_to_excel(data=all_data, file_name=excel_file_name)
+            # Send the file to the user
+            if os.path.exists(excel_file_name):
+                with open(excel_file_name, 'rb') as file:
+                    await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
         else:
             await context.bot.send_message(
                 chat_id=chat_id, 
@@ -47,6 +60,14 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
             )
             print(f"전체 종목 전송: 페이지 수는 {page_count}")
             # 전체 종목 전송 로직 추가 (필요 시 함수 호출)
+            all_data = fetch_dividend_stock_list_API(page=page_count)
+            # 엑셀 파일로 저장
+            excel_file_name = os.path.join(os.getenv('EXCEL_FOLDER_PATH'), f'dividend_naver_quant_{today_date}.xlsx')
+            save_stock_data_to_excel(data=all_data, file_name=excel_file_name)
+            # Send the file to the user
+            if os.path.exists(excel_file_name):
+                with open(excel_file_name, 'rb') as file:
+                    await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
     except Exception as e:
         await context.bot.send_message(
             chat_id=chat_id, 

@@ -9,7 +9,7 @@ import os
 import subprocess
 import platform
 
-CHART_DIR = "chart"
+CHART_DIR = "chart/"
 
 def draw_chart(stock_code, stock_name):
     if not os.path.exists(CHART_DIR):
