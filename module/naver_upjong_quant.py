@@ -6,79 +6,7 @@ import pandas as pd  # pandas를 추가합니다
 from module.cache_manager import CacheManager
 
 from module.naver_stock_quant import fetch_stock_yield_by_period
-from datetime import datetime, time
-import pytz
-
-
-def check_market_status(market):
-    """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
-    
-    kst = pytz.timezone('Asia/Seoul')
-    now = datetime.now(kst)
-    day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    month = now.month            # 현재 월
-    current_time = now.time()    # 현재 시간
-
-    # 시간 범위 정의
-    close_start_time = time(16, 30)  # 오후 16:30
-    close_end_time = time(8, 0)      # 오전 08:00
-
-    # 토요일(5) 또는 일요일(6)인 경우
-    if day_of_week in [5, 6]:
-        return 'CLOSE'
-    
-    # 16:30부터 08:00까지의 시간 범위 확인
-    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
-    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-        return 'CLOSE'
-
-    # 주중의 경우, API를 통해 시장 상태 확인
-    api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    try:
-        api_response = requests.get(api_url, headers=headers)
-        if api_response.status_code == 200:
-            stock_basic_data = api_response.json()
-            return stock_basic_data.get('marketStatus', 'UNKNOWN')  # API 응답에서 'marketStatus' 키를 찾아 반환
-        else:
-            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN'
-    except Exception as e:
-        print(f"Error fetching API data: {e}")
-        return 'UNKNOWN'
-
-def fetch_upjong_list():
-    base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    # 웹 페이지 요청
-    response = requests.get(base_upjong_url, headers=headers)
-    response.encoding = 'euc-kr'  # Naver 페이지는 EUC-KR 인코딩을 사용합니다.
-
-    # 페이지 내용 파싱
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # 업종명과 링크를 찾기 위한 데이터 추출
-    table = soup.find('table', {'class': 'type_1'})
-    if not table:
-        raise ValueError("업종 목록 테이블을 찾을 수 없습니다.")
-    
-    rows = table.find_all('tr')[2:]  # 헤더를 제외하고 데이터만 가져옵니다.
-
-    # 데이터 수집
-    data = []
-    for row in rows:
-        cols = row.find_all('td')
-        if len(cols) >= 2:  # 필요한 만큼의 데이터가 있는지 확인
-            업종명 = cols[0].get_text(strip=True)
-            등락률 = cols[1].get_text(strip=True)
-            링크 = cols[0].find('a')['href']
-            data.append((업종명, 등락률, 링크))
-    print(data)
-    return data
+from datetime import datetime
 
 def fetch_upjong_list_API():
     cache_manager = CacheManager("cache", "upjong")
@@ -308,7 +236,6 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
 
     print(ordered_data)
     return ordered_data
-
 
 def fetch_stock_info_quant(stock_code):
     url = f'https://finance.naver.com/item/main.naver?code={stock_code}'

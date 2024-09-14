@@ -34,7 +34,7 @@ class CacheManager:
         day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
 
         # 장 상태를 확인합니다.
-        from module.naver_upjong_quant import check_market_status
+        from module.naver_stock_util import check_market_status
         market_status = check_market_status(market='KOSPI')
 
         # 1. 장중일 경우 캐시는 유효하지 않음

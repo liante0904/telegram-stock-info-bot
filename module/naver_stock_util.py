@@ -1,9 +1,51 @@
+from datetime import datetime, time
+import pytz
 import requests
 import sys
 import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from sql.kr_isu import select_data as select_sqlite_kr_stock
+
+def check_market_status(market):
+    """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
+    
+    kst = pytz.timezone('Asia/Seoul')
+    now = datetime.now(kst)
+    day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
+    month = now.month            # 현재 월
+    current_time = now.time()    # 현재 시간
+
+    # 시간 범위 정의
+    close_start_time = time(16, 30)  # 오후 16:30
+    close_end_time = time(8, 0)      # 오전 08:00
+
+    # 토요일(5) 또는 일요일(6)인 경우
+    if day_of_week in [5, 6]:
+        return 'CLOSE'
+    
+    # 16:30부터 08:00까지의 시간 범위 확인
+    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
+    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
+        return 'CLOSE'
+
+    # 주중의 경우, API를 통해 시장 상태 확인
+    api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code == 200:
+            stock_basic_data = api_response.json()
+            return stock_basic_data.get('marketStatus', 'UNKNOWN')  # API 응답에서 'marketStatus' 키를 찾아 반환
+        else:
+            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN'
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        return 'UNKNOWN'
+
 
 def search_stock_code(query):
     url = 'https://ac.stock.naver.com/ac'
@@ -68,9 +110,6 @@ def search_stock_code(query):
     print(final_filtered_items)
     return final_filtered_items
 
-
-
-
 def search_stock_code_mobileAPI(query):
     # 1-1. select_sqlite_kr_stock을 통해 데이터를 조회
     result = select_sqlite_kr_stock(isu=query)
@@ -115,6 +154,7 @@ def search_stock_code_mobileAPI(query):
             return data['result']['items']
         else:
             return []
+
 def main():
     r = search_stock_code_mobileAPI('aapl')
     if r:
