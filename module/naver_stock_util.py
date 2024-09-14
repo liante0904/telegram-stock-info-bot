@@ -1,11 +1,9 @@
 import requests
 import os
 import sys
+import math
 from datetime import datetime, timedelta, time
 import pytz
-import requests
-import sys
-import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from sql.kr_isu import select_data as select_sqlite_kr_stock
@@ -230,8 +228,6 @@ def search_stock_code_mobileAPI(query):
             return data['result']['items']
         else:
             return []
-
-import math
 
 def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     """
