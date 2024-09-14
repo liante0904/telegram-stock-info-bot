@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta
 
-def get_research_data(itemName, itemCode, writeFromDate='', writeToDate=''):
+def fetch_research_data_pc(itemName, itemCode, writeFromDate='', writeToDate=''):
     print(f"Fetching research data for: {itemName} ({itemCode})")
 
     if not writeToDate:
@@ -56,8 +56,8 @@ def get_research_data(itemName, itemCode, writeFromDate='', writeToDate=''):
     print(f"Data fetched: {df.shape[0]} rows")
     return df
 
-def search_stock_report(item_name, item_code, writeFromDate='', writeToDate=''):
-    df = get_research_data(itemName=item_name, itemCode=item_code, writeFromDate=writeFromDate, writeToDate=writeToDate)
+def search_stock_report_pc(item_name, item_code, writeFromDate='', writeToDate=''):
+    df = fetch_research_data_pc(itemName=item_name, itemCode=item_code, writeFromDate=writeFromDate, writeToDate=writeToDate)
     results = []
     if not df.empty:
         for _, row in df.iterrows():
@@ -81,6 +81,6 @@ if __name__ == "__main__":
     item_code = '005930'
 
     # 검색 실행
-    results = search_stock_report(item_name, item_code, fr_dt, to_dt)
+    results = search_stock_report_pc(item_name, item_code, fr_dt, to_dt)
     for result in results:
         print(result)
