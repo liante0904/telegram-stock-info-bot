@@ -25,7 +25,7 @@ class CacheManager:
     def save_cache(self, stock_code, data):
         cache_file = self._get_cache_file_path(stock_code)
         with open(cache_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False)
+            json.dump(data, file, ensure_ascii=False, indent=4)
 
     def is_cache_valid(self, stock_code):
         # 타임존 설정
@@ -34,7 +34,7 @@ class CacheManager:
         day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
 
         # 장 상태를 확인합니다.
-        from module.naver_upjong_quant import check_market_status
+        from module.naver_stock_util import check_market_status
         market_status = check_market_status(market='KOSPI')
 
         # 1. 장중일 경우 캐시는 유효하지 않음
