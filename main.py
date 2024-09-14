@@ -11,13 +11,14 @@ from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in
 from module.naver_stock_util import search_stock_code
 from module.chart import CHART_DIR
 from module.recent_searches import load_recent_searches, show_recent_searches
+from module.naver_stock_quant import fetch_dividend_stock_list_API
 from module.excel_util import process_excel_file
 
 from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
 from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
 from handler.quant_handler import process_selected_stock_for_quant
 from handler.upjong_handler import show_upjong_list
-from handler.diviend_handler import send_dividend_total_stock_count
+from handler.diviend_handler import send_dividend_stock_excel_quant
 from datetime import datetime, timedelta
 
 # 명령어와 설명을 튜플 형태로 저장한 리스트 (전역 변수)
@@ -88,6 +89,27 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     # 다음 명령어 상태 설정
     context.user_data['next_command'] = 'report_alert_keyword'
 
+
+async def send_dividend_total_stock_count(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    try:
+        # 국내 배당 종목 수를 가져옴
+        dividend_data = fetch_dividend_stock_list_API()
+        dividend_total_stock_count = dividend_data.get('totalCount', 0)  # totalCount 추출, 없을 경우 기본값 0
+        dividend_message = (
+            f"*국내 배당 종목 수는 {dividend_total_stock_count}개입니다\\.*\n\n"
+            "필요한 *종목 수*를 전송해주세요\\.\n\n"
+            "*0* 혹은 *아무 키*나 보내면 *전체 종목*이 전송됩니다\\."
+        )
+        await context.bot.send_message(chat_id=chat_id, text=dividend_message, parse_mode='MarkdownV2')
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=chat_id, 
+            text=f"국내 배당 종목 수를 가져오는 중 오류가 발생했습니다: {e}",
+            parse_mode='MarkdownV2'
+        )
+
+    context.user_data['next_command'] = 'dividend_quant'
 # JSON 파일에서 사용자 알림 키워드를 불러오는 함수
 def load_alert_keywords():
     if os.path.exists(KEYWORD_FILE_PATH):
@@ -143,6 +165,7 @@ async def show_commands(update, context):
     for command, description in COMMAND_LIST:
         commands_text += f"/{command} - {description}\n"
     
+    time.sleep(1) # 메세지 발송 제한 방지
     await context.bot.send_message(chat_id=update.effective_chat.id, text=commands_text)
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
@@ -332,19 +355,18 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
         
         elif next_command == 'dividend_quant':
-            await context.bot.send_message(chat_id=chat_id, text="현재 개발중일 수 있음. \n 배당 퀀트 TODO")
-            time.sleep(1)
-            await show_commands(update, context)
+            await send_dividend_stock_excel_quant(update, context)
         else:
             await context.bot.send_message(chat_id=chat_id, text="현재 개발중일 수 있음.")
-            time.sleep(1)
-            await show_commands(update, context)
+
     except FileNotFoundError:
         await context.bot.send_message(chat_id=chat_id, text="파일이 존재하지 않습니다.")
     except IOError as e:
         await context.bot.send_message(chat_id=chat_id, text=f"파일 입출력 오류가 발생했습니다: {e}")
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
+    finally:
+        await show_commands(update, context)
 
 # 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
