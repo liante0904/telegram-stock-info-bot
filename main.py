@@ -39,6 +39,7 @@ KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
 EXCEL_FOLDER_PATH = 'excel/'  # Adjust this to your actual folder path if needed
 JSON_DIR = 'json/'  # Adjust this to your actual folder path if needed
+CHART_DIR = "chart/"
 
 async def generate_chart(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
