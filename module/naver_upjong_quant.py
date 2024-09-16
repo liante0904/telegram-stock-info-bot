@@ -107,6 +107,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     print('####1')
+    
     # 국내 & 해외 주식 분기
     if 'domestic' in url:  # 국내 주식
         print('####2')
@@ -115,15 +116,62 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         data = fetch_worldstock_info(headers, stock_code, reutersCode)
     else:
         print('####3')
-        print('????')
         raise ValueError("Invalid URL format. Must contain 'domestic' or 'worldstock'.")
-
+    
     print('####4')
-    # 캐시 저장
-    cache_manager.save_cache(stock_code, {'result': data})
 
-    print(data)
-    return data
+    # 해외 주식인 경우 기간 수익률 미지원 처리
+    if 'worldstock' in url:
+        print("[DEBUG] 해외 주식은 '기간 수익률' 데이터를 지원하지 않습니다.")
+        # 캐시 저장 후, 지금까지 처리된 데이터를 반환
+        cache_manager.save_cache(stock_code, {'result': data})
+        return data
+
+    # 추가된 부분: 기간 수익률 데이터 처리 (국내 주식의 경우만)
+    yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+    for key, value in yield_data_dict.items():
+        data[key] = value
+    
+    # 데이터 내 숫자 형식으로 변환이 필요한 항목 처리
+    numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
+    for key in numeric_keys:
+        if key in data and isinstance(data[key], str):
+            value = data[key].replace(',', '').replace('%', '')
+            try:
+                data[key] = float(value)
+            except ValueError:
+                data[key] = 'N/A'
+    
+    # 데이터의 순서를 정리하여 최종 결과 생성
+    ordered_data = {
+        '종목명': data.get('종목명', 'N/A'),
+        '시장구분': data.get('시장구분', 'N/A'),
+        'PER': data.get('PER', 'N/A'),
+        'fwdPER': data.get('fwdPER', 'N/A'),
+        'PBR': data.get('PBR', 'N/A'),
+        '배당수익률': data.get('배당수익률', 'N/A'),
+        '예상배당수익률': data.get('예상배당수익률', 'N/A'),
+        'ROE': data.get('ROE', 'N/A'),
+        '현재가': data.get('현재가', 'N/A'),
+        '전일비': data.get('전일비', 'N/A'),
+        '등락률': data.get('등락률', 'N/A'),
+        '비고(메모)': data.get('비고(메모)', ' '),
+        '1D': data.get('등락률', 'N/A'),
+        '1W': data.get('1W', 'N/A'),
+        '1M': data.get('1M', 'N/A'),
+        '3M': data.get('3M', 'N/A'),
+        '6M': data.get('6M', 'N/A'),
+        'YTD': data.get('YTD', 'N/A'),
+        '1Y': data.get('1Y', 'N/A'),
+        '종목코드': data.get('종목코드', 'N/A'),
+        '네이버url': data.get('네이버url', 'N/A'),
+    }
+
+    # 캐시 저장
+    cache_manager.save_cache(stock_code, {'result': ordered_data})
+
+    print(ordered_data)
+    return ordered_data
 
 
 def fetch_domestic_stock_info(headers, stock_code, reutersCode):
