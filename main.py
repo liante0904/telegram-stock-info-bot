@@ -146,13 +146,13 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
 
     for result in results:
         if result['code'] == selected_code:
-            stock_name, stock_code = result['name'], result['code']
+            stock_name, stock_code, url = result['name'], result['code'], result['url']
             if next_command == 'generate_chart':
                 await process_selected_stock_for_chart(update, context, stock_name, stock_code)
             elif next_command == 'search_report':
                 await process_selected_stock_for_report(update, context, stock_name, stock_code)
             elif next_command == 'stock_quant':
-                await process_selected_stock_for_quant(update, context, stock_name, stock_code)
+                await process_selected_stock_for_quant(update, context, stock_name, stock_code, url)
 
 # set_commands 함수
 async def set_commands(bot):
@@ -243,10 +243,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             # 종목 검색
             for stock_name in stock_list:
                 results = search_stock_code(stock_name)
+                print(results)
                 if results and len(results) == 1:
-                    stock_name, stock_code = results[0]['name'], results[0]['code']
+                    stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant_API(stock_code)
+                    quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
                     print(quant_data)
                     if quant_data:
                         all_quant_data.append(quant_data)
@@ -255,20 +256,19 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     select_stock = None  # 초기 값으로 None 설정
                     for result in results:
                         if result['name'] == stock_name:
-                            select_stock = {'name': result['name'], 'code': result['code']}
+                            select_stock = {'name': result['name'], 'code': result['code'], 'url': result['url']}
                             break  # 조건을 만족하는 첫 번째 항목을 찾으면 루프 중단
 
                     if select_stock:
                         print('===>', select_stock)
-                        stock_name, stock_code = select_stock['name'], select_stock['code']
                     else:
                         await update.message.reply_text(f"{stock_name} 을 찾을 수 없습니다.")
                         await update.message.reply_text(f"{results} \n 종목에서 ")
                         await update.message.reply_text(f"{results[0]['name']}로 처리됩니다. ")
-                        stock_name, stock_code = results[0]['name'], results[0]['code']
-                    
+                        
+                    stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
                     await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant_API(stock_code)
+                    quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
 
                     print(quant_data)
                     if quant_data:
@@ -325,7 +325,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     all_quant_data = []
                     for 종목명, _, _, _, 종목링크 in stock_info:
                         stock_code = 종목링크.split('=')[-1]
-                        quant_data = fetch_stock_info_quant_API(stock_code)
+                        results = search_stock_code(stock_code)
+                        stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                        quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
                         if quant_data:
                             all_quant_data.append(quant_data)
                         else: pass
@@ -341,7 +343,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                     with pd.ExcelWriter(excel_file_name, engine='openpyxl') as writer:
                         df.to_excel(writer, sheet_name=업종명, index=False)
 
-                    process_excel_file(excel_file_name, df)
+                    process_excel_file(excel_file_name)
 
                     print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
 
@@ -427,11 +429,13 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         # 퀀트 데이터 가져오기
                         if stock_code:
-                            stock_info = search_stock_code(stock_code)
-                            quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
+                            results = search_stock_code(stock_code)
+                            stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                            quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
                         elif stock_name:
-                            stock_info = search_stock_code(stock_name)
-                            quant_data = fetch_stock_info_quant_API(stock_info[0]['code'])
+                            results = search_stock_code(stock_name)
+                            stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                            quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
                         else:
                             quant_data = None
 
@@ -460,7 +464,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                     # 갱신된 시트를 새로운 엑셀 파일에 저장
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-            process_excel_file(updated_file_name, df)
+            process_excel_file(updated_file_name)
 
             # 모든 작업이 완료된 후 최종 메시지 수정
             update_message += "============\n엑셀 데이터 전송 완료"
