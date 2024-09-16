@@ -5,80 +5,8 @@ from bs4 import BeautifulSoup
 import pandas as pd  # pandas를 추가합니다
 from module.cache_manager import CacheManager
 
-from module.naver_stock_quant import fetch_stock_yield_by_period
-from datetime import datetime, time
-import pytz
-
-
-def check_market_status(market):
-    """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
-    
-    kst = pytz.timezone('Asia/Seoul')
-    now = datetime.now(kst)
-    day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    month = now.month            # 현재 월
-    current_time = now.time()    # 현재 시간
-
-    # 시간 범위 정의
-    close_start_time = time(16, 30)  # 오후 16:30
-    close_end_time = time(8, 0)      # 오전 08:00
-
-    # 토요일(5) 또는 일요일(6)인 경우
-    if day_of_week in [5, 6]:
-        return 'CLOSE'
-    
-    # 16:30부터 08:00까지의 시간 범위 확인
-    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
-    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-        return 'CLOSE'
-
-    # 주중의 경우, API를 통해 시장 상태 확인
-    api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    try:
-        api_response = requests.get(api_url, headers=headers)
-        if api_response.status_code == 200:
-            stock_basic_data = api_response.json()
-            return stock_basic_data.get('marketStatus', 'UNKNOWN')  # API 응답에서 'marketStatus' 키를 찾아 반환
-        else:
-            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN'
-    except Exception as e:
-        print(f"Error fetching API data: {e}")
-        return 'UNKNOWN'
-
-def fetch_upjong_list():
-    base_upjong_url = 'https://finance.naver.com/sise/sise_group.naver?type=upjong'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    # 웹 페이지 요청
-    response = requests.get(base_upjong_url, headers=headers)
-    response.encoding = 'euc-kr'  # Naver 페이지는 EUC-KR 인코딩을 사용합니다.
-
-    # 페이지 내용 파싱
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # 업종명과 링크를 찾기 위한 데이터 추출
-    table = soup.find('table', {'class': 'type_1'})
-    if not table:
-        raise ValueError("업종 목록 테이블을 찾을 수 없습니다.")
-    
-    rows = table.find_all('tr')[2:]  # 헤더를 제외하고 데이터만 가져옵니다.
-
-    # 데이터 수집
-    data = []
-    for row in rows:
-        cols = row.find_all('td')
-        if len(cols) >= 2:  # 필요한 만큼의 데이터가 있는지 확인
-            업종명 = cols[0].get_text(strip=True)
-            등락률 = cols[1].get_text(strip=True)
-            링크 = cols[0].find('a')['href']
-            data.append((업종명, 등락률, 링크))
-    print(data)
-    return data
+from module.naver_stock_util import fetch_stock_yield_by_period, search_stock_code
+from datetime import datetime
 
 def fetch_upjong_list_API():
     cache_manager = CacheManager("cache", "upjong")
@@ -158,9 +86,14 @@ def fetch_stock_info_in_upjong(upjong_link):
     
     return stock_data
 
-def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
-    if not stock_code and not stock_name:
-        raise ValueError("Either 'stock_code' or 'stock_name' must be provided.")
+def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reutersCode=None):
+    print('='*5, 'fetch_stock_info_quant_API', '='*5)
+
+    if not stock_code and not stock_name and not url and not reutersCode:
+        raise ValueError("Either 'stock_code' or 'stock_name' or 'url' or 'reutersCode' must be provided.")
+    else:
+        results = search_stock_code(stock_code)
+        stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
     
     # 캐시 디렉토리와 파일 접두어 설정
     cache_manager = CacheManager("cache", "stock")
@@ -173,103 +106,33 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
+    print('####1')
     
-    # API URL 설정
-    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/basic'
-    
-    try:
-        api_response = requests.get(api_url, headers=headers)
-        if api_response.status_code != 200:
-            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
-    except Exception as e:
-        print(f"Error fetching API data: {e}")
-        return {}
-    
-    stock_basic_data = api_response.json()
-
-    # # 현재 장운영 상태 확인
-    # market_status = stock_basic_data.get('marketStatus', 'N/A')
-    # if market_status == 'CLOSE':
-    #     print("[DEBUG] 현재 마켓이 폐장 상태입니다.")
-    
-    data = {
-        '종목명': stock_basic_data.get('stockName', 'N/A'),
-        '시장구분': stock_basic_data.get('stockExchangeType', {}).get('nameEng', 'N/A'),
-        '현재가': safe_int(stock_basic_data.get('closePrice', 'N/A')),
-        '전일비': safe_int(stock_basic_data.get('compareToPreviousClosePrice', 'N/A')),
-        '등락률': stock_basic_data.get('fluctuationsRatio', 'N/A')
-    }
-    
-    # 추가 데이터 요청
-    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/integration'
-    
-    try:
-        api_response = requests.get(api_url, headers=headers)
-        if api_response.status_code != 200:
-            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
-    except Exception as e:
-        print(f"Error fetching API data: {e}")
-        return {}
-    
-    total_infos = api_response.json()
-    total_infos = {info['key']: info['value'] for info in total_infos.get('totalInfos', [])}
-
-    data.update({
-        'PER': safe_float(total_infos.get('PER', 'N/A').replace('배', '')),
-        'fwdPER': safe_float(total_infos.get('추정PER', 'N/A').replace('배', '')),
-        'PBR': safe_float(total_infos.get('PBR', 'N/A').replace('배', '')),
-        '배당수익률': safe_float(total_infos.get('배당수익률', 'N/A').replace('%', '')),
-        '예상배당수익률': 'N/A'
-    })
-
-    # API URL 설정
-    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/finance/annual'
-    
-    try:
-        api_response = requests.get(api_url, headers=headers)
-        if api_response.status_code != 200:
-            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
-    except Exception as e:
-        print(f"Error fetching API data: {e}")
-        data['ROE'] = "N/A"
-        data['예상배당수익률'] = "N/A"
-    
-    stock_finance_data = api_response.json()
-    current_year = datetime.now().year
-
-    if stock_finance_data.get('financeInfo') is None:
-        data['ROE'] = "N/A"
-        data['예상배당수익률'] = "N/A"
+    # 국내 & 해외 주식 분기
+    if 'domestic' in url:  # 국내 주식
+        print('####2')
+        data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
+    elif 'worldstock' in url:  # 해외 주식
+        data = fetch_worldstock_info(headers, stock_code, reutersCode)
     else:
-        tr_title_list = stock_finance_data['financeInfo'].get('trTitleList', [])
-        available_keys = [key['key'] for key in tr_title_list if key['key'][:4] == str(current_year)]
-        target_key = max(available_keys) if available_keys else None
-        
-        try:
-            roe = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == 'ROE')
-            dividend = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == '주당배당금')
-
-            if target_key and target_key in roe['columns'] and target_key in dividend['columns']:
-                data['ROE'] = roe['columns'][target_key]['value']
-                data['예상배당수익률'] = safe_int(dividend['columns'][target_key]['value'])
-                data['예상배당수익률'] = data['예상배당수익률'] / data['현재가'] * 100
-                data['예상배당수익률'] = round(data['예상배당수익률'], 2)
-            else:
-                data['ROE'] = "N/A"
-                data['예상배당수익률'] = "N/A"
-        except Exception as e:
-            print(f"Error processing stock data: {e}")
-            data['ROE'] = "N/A"
-            data['예상배당수익률'] = "N/A"
+        print('####3')
+        raise ValueError("Invalid URL format. Must contain 'domestic' or 'worldstock'.")
     
-    data['네이버url'] = f'https://finance.naver.com/item/main.naver?code={stock_code}'
-    data['종목코드'] = str(stock_code)
+    print('####4')
 
-    # 기간 수익률
+    # 해외 주식인 경우 기간 수익률 미지원 처리
+    if 'worldstock' in url:
+        print("[DEBUG] 해외 주식은 '기간 수익률' 데이터를 지원하지 않습니다.")
+        # 캐시 저장 후, 지금까지 처리된 데이터를 반환
+        cache_manager.save_cache(stock_code, {'result': data})
+        return data
+
+    # 추가된 부분: 기간 수익률 데이터 처리 (국내 주식의 경우만)
     yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
     for key, value in yield_data_dict.items():
         data[key] = value
     
+    # 데이터 내 숫자 형식으로 변환이 필요한 항목 처리
     numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
     for key in numeric_keys:
         if key in data and isinstance(data[key], str):
@@ -279,6 +142,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
             except ValueError:
                 data[key] = 'N/A'
     
+    # 데이터의 순서를 정리하여 최종 결과 생성
     ordered_data = {
         '종목명': data.get('종목명', 'N/A'),
         '시장구분': data.get('시장구분', 'N/A'),
@@ -308,6 +172,77 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None):
 
     print(ordered_data)
     return ordered_data
+
+
+def fetch_domestic_stock_info(headers, stock_code, reutersCode):
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/basic'
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        return {}
+
+    stock_basic_data = api_response.json()
+
+    data = {
+        '종목명': stock_basic_data.get('stockName', 'N/A'),
+        '시장구분': stock_basic_data.get('stockExchangeType', {}).get('nameEng', 'N/A'),
+        '현재가': safe_int(stock_basic_data.get('closePrice', 'N/A')),
+        '전일비': safe_int(stock_basic_data.get('compareToPreviousClosePrice', 'N/A')),
+        '등락률': stock_basic_data.get('fluctuationsRatio', 'N/A')
+    }
+
+    # 추가 데이터 요청
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/integration'
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        return {}
+
+    total_infos = api_response.json()
+    total_infos = {info['key']: info['value'] for info in total_infos.get('totalInfos', [])}
+
+    data.update({
+        'PER': safe_float(total_infos.get('PER', 'N/A').replace('배', '')),
+        'fwdPER': safe_float(total_infos.get('추정PER', 'N/A').replace('배', '')),
+        'PBR': safe_float(total_infos.get('PBR', 'N/A').replace('배', '')),
+        '배당수익률': safe_float(total_infos.get('배당수익률', 'N/A').replace('%', '')),
+        '예상배당수익률': 'N/A'
+    })
+
+    return data
+
+
+def fetch_worldstock_info(headers, stock_code, reutersCode):
+    api_url = f'https://api.stock.naver.com/stock/{reutersCode}/basic'
+    print('='*5 , 'fetch_worldstock_info', '='*5 )
+    print(api_url)
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        return {}
+    print(api_response.content)
+    stock_data = api_response.json()
+    print(stock_data.get('closePrice'))
+
+    data = {
+        '종목명': stock_data.get('stockName', 'N/A'),
+        '시장구분': stock_data.get('stockExchangeName', 'N/A'),
+        '현재가': stock_data.get('closePrice', 'N/A'),  # 현재가는 closePrice
+        '전일비': stock_data.get('compareToPreviousClosePrice', 'N/A'),  # 전일비는 compareToPreviousClosePrice
+        '등락률': stock_data.get('fluctuationsRatio', 'N/A'),  # 등락률은 fluctuationsRatio
+        '네이버url': stock_data.get('endUrl', 'N/A')  # 네이버 url은 endUrl
+    }
+
+    return data
 
 
 def fetch_stock_info_quant(stock_code):
@@ -633,4 +568,3 @@ if __name__ == "__main__":
     upjong_list = fetch_upjong_list_API()
     for item in upjong_list:
         print(item)
-
