@@ -5,11 +5,11 @@ import pandas as pd
 from module.naver_upjong_quant import fetch_stock_info_quant_API
 from datetime import datetime
 
-async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str, url: str):
     chat_id = update.effective_chat.id
 
     # 종목 정보를 가져옵니다.
-    quant_data = fetch_stock_info_quant_API(stock_code)
+    quant_data = fetch_stock_info_quant_API(stock_code, url)
     all_quant_data = []
     if quant_data:
         all_quant_data.append(quant_data)
