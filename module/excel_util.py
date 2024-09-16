@@ -2,7 +2,6 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
-
 # 엑셀 셀 주소 변환 함수
 def number_to_coordinate(rc):
     row_idx, col_idx = rc[0], rc[1]
@@ -25,24 +24,32 @@ def apply_auto_filter(ws):
     cell_range = f'{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}'
     ws.auto_filter.ref = cell_range
 
-def apply_hyperlinks(ws, df):
+def apply_hyperlinks(ws):
     """'네이버url' 열에 하이퍼링크를 적용합니다."""
     url_column_name = '네이버url'
-    if url_column_name in df.columns:
-        url_col_index = df.columns.get_loc(url_column_name) + 1  # 1-based index
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=url_col_index, max_col=url_col_index):
-            for cell in row:
-                if cell.value:
-                    cell.hyperlink = cell.value
-                    cell.font = Font(color="0000FF", underline="single")
+    
+    # 첫 번째 행에서 '네이버url' 열을 찾습니다.
+    url_col_index = None
+    for col in range(1, ws.max_column + 1):
+        cell_value = ws.cell(row=1, column=col).value
+        if cell_value == url_column_name:
+            url_col_index = col
+            break
+    
+    # '네이버url' 열이 있는 경우 하이퍼링크를 적용합니다.
+    if url_col_index:
+        for row in range(2, ws.max_row + 1):
+            cell = ws.cell(row=row, column=url_col_index)
+            if cell.value:
+                cell.hyperlink = cell.value
+                cell.font = Font(color="0000FF", underline="single")
 
-def process_excel_file(file_name, df):
+def process_excel_file(file_name):
     """
     엑셀 파일의 모든 시트에서 열 너비 조정, 자동 필터 적용, 하이퍼링크 처리를 수행합니다.
 
     Parameters:
     file_name (str): 처리할 엑셀 파일의 이름
-    df (pandas.DataFrame): 하이퍼링크를 적용할 데이터가 포함된 DataFrame
 
     Returns:
     None
@@ -61,7 +68,7 @@ def process_excel_file(file_name, df):
         apply_auto_filter(ws)
         
         # 하이퍼링크를 적용합니다.
-        apply_hyperlinks(ws, df)
+        apply_hyperlinks(ws)
     
     # 변경된 내용을 저장합니다.
     wb.save(file_name)
@@ -69,3 +76,6 @@ def process_excel_file(file_name, df):
     # 워크북을 닫습니다.
     wb.close()
 
+# 함수 사용 예
+if __name__ == "__main__":
+    process_excel_file(file_name='test.xlsx')

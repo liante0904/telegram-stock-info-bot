@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, time
 import pytz
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from sql.kr_isu import select_data as select_sqlite_kr_stock
 
 def check_market_status(market):
     """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
@@ -185,27 +184,19 @@ def search_stock_code(query):
     return final_filtered_items
 
 def search_stock_code_mobileAPI(query):
-    # 1-1. select_sqlite_kr_stock을 통해 데이터를 조회
-    result = select_sqlite_kr_stock(isu=query)
-    
-    # 1-1. 조회된 값이 있으면 바로 반환
-    if result:  # 빈값인 경우 [] 반환이므로 그대로 사용 가능
-        print("SQLite 조회 결과:", result)
-        
-        # ISU_NO와 ISU_NM을 'code'와 'name'으로 변환하고 나머지 데이터도 포함하여 반환
-        transformed_result = [
-            {
-                'code': item['ISU_NO'],       # ISU_NO -> code
-                'name': item['ISU_NM'],       # ISU_NM -> name
-                'market': item['MARKET'],     # MARKET 포함
-                'sector': item['SECTOR'],     # SECTOR 포함
-                'last_updated': item['LAST_UPDATED']  # LAST_UPDATED 포함
-            }
-            for item in result
-        ]
-        
-        print("변환된 결과:", transformed_result)
-        return transformed_result
+    # 네이버 API를 통한 해외 주식 조회 로직
+    url = 'https://m.stock.naver.com/front-api/search/autoComplete'
+    params = {
+        'query': query,
+        'target': 'stock,index,marketindicator'
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+    print(data)
+
+
+    if data:  pass
     else:
         # 1-2. 빈 값을 리턴받으면 해외 주식으로 간주
         print("해외 주식으로 간주하고 네이버 API로 검색합니다.")
@@ -244,7 +235,8 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     return math.ceil(requested_count / page_size)
 
 def main():
-    r = search_stock_code_mobileAPI('aapl')
+    # r = search_stock_code_mobileAPI('이토추')
+    r = search_stock_code('이토추')
     if r:
         print('0===>', r)
         
