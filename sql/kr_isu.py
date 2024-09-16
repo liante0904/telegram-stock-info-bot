@@ -45,6 +45,29 @@ def select_data(isu=None, date=None):
         print([])
         return []  # 조회된 데이터가 없을 경우 빈 리스트 반환
 
+def fetch_data(isu=None, date=None):
+
+    # 1-1. select_sqlite_kr_stock을 통해 데이터를 조회
+    result = select_data(isu=isu)
+
+    # 1-1. 조회된 값이 있으면 바로 반환
+    if result:  # 빈값인 경우 [] 반환이므로 그대로 사용 가능
+        print("SQLite 조회 결과:", result)
+        
+        # ISU_NO와 ISU_NM을 'code'와 'name'으로 변환하고 나머지 데이터도 포함하여 반환
+        transformed_result = [
+            {
+                'code': item['ISU_NO'],       # ISU_NO -> code
+                'name': item['ISU_NM'],       # ISU_NM -> name
+                'market': item['MARKET'],     # MARKET 포함
+                'sector': item['SECTOR'],     # SECTOR 포함
+                'last_updated': item['LAST_UPDATED']  # LAST_UPDATED 포함
+            }
+            for item in result
+        ]
+        
+        print("변환된 결과:", transformed_result)
+        return transformed_result
 
 
 def drop_table():
