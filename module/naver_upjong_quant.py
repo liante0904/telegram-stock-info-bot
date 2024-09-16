@@ -106,20 +106,15 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    print('####1')
     
     # 국내 & 해외 주식 분기
     if 'domestic' in url:  # 국내 주식
-        print('####2')
         data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
     elif 'worldstock' in url:  # 해외 주식
         data = fetch_worldstock_info(headers, stock_code, reutersCode)
     else:
-        print('####3')
         raise ValueError("Invalid URL format. Must contain 'domestic' or 'worldstock'.")
     
-    print('####4')
-
     # 해외 주식인 경우 기간 수익률 미지원 처리
     if 'worldstock' in url:
         print("[DEBUG] 해외 주식은 '기간 수익률' 데이터를 지원하지 않습니다.")
@@ -239,7 +234,9 @@ def fetch_worldstock_info(headers, stock_code, reutersCode):
         '현재가': stock_data.get('closePrice', 'N/A'),  # 현재가는 closePrice
         '전일비': stock_data.get('compareToPreviousClosePrice', 'N/A'),  # 전일비는 compareToPreviousClosePrice
         '등락률': stock_data.get('fluctuationsRatio', 'N/A'),  # 등락률은 fluctuationsRatio
-        '네이버url': stock_data.get('endUrl', 'N/A')  # 네이버 url은 endUrl
+        '종목코드': stock_data.get('itemCode', 'N/A'),  # 주식종목코드
+        '네이버url': stock_data.get('endUrl', 'N/A'),  # 네이버 url은 endUrl
+        'reutersCode': stock_data.get('reutersCode', 'N/A')  # 네이버 고유 라우트코드
     }
 
     return data
