@@ -210,8 +210,49 @@ def fetch_domestic_stock_info(headers, stock_code, reutersCode):
         '예상배당수익률': 'N/A'
     })
 
-    return data
+    # 추가 재무 데이터 요청
+    api_url = f'https://m.stock.naver.com/api/stock/{stock_code}/finance/annual'
+    try:
+        api_response = requests.get(api_url, headers=headers)
+        if api_response.status_code != 200:
+            raise Exception(f"Failed to fetch API data: Status code {api_response.status_code}")
+    except Exception as e:
+        print(f"Error fetching API data: {e}")
+        data['ROE'] = "N/A"
+        data['예상배당수익률'] = "N/A"
 
+    stock_finance_data = api_response.json()
+    current_year = datetime.now().year
+
+    if stock_finance_data.get('financeInfo') is None:
+        data['ROE'] = "N/A"
+        data['예상배당수익률'] = "N/A"
+    else:
+        tr_title_list = stock_finance_data['financeInfo'].get('trTitleList', [])
+        available_keys = [key['key'] for key in tr_title_list if key['key'][:4] == str(current_year)]
+        target_key = max(available_keys) if available_keys else None
+
+        try:
+            roe = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == 'ROE')
+            dividend = next(item for item in stock_finance_data['financeInfo']['rowList'] if item['title'] == '주당배당금')
+
+            if target_key and target_key in roe['columns'] and target_key in dividend['columns']:
+                data['ROE'] = roe['columns'][target_key]['value']
+                data['예상배당수익률'] = safe_int(dividend['columns'][target_key]['value'])
+                data['예상배당수익률'] = data['예상배당수익률'] / data['현재가'] * 100
+                data['예상배당수익률'] = round(data['예상배당수익률'], 2)
+            else:
+                data['ROE'] = "N/A"
+                data['예상배당수익률'] = "N/A"
+        except Exception as e:
+            print(f"Error processing stock data: {e}")
+            data['ROE'] = "N/A"
+            data['예상배당수익률'] = "N/A"
+
+    data['네이버url'] = f'https://finance.naver.com/item/main.naver?code={stock_code}'
+    data['종목코드'] = str(stock_code)
+
+    return data
 
 def fetch_worldstock_info(headers, stock_code, reutersCode):
     api_url = f'https://api.stock.naver.com/stock/{reutersCode}/basic'
