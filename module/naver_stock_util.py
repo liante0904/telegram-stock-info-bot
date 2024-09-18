@@ -21,11 +21,11 @@ def check_market_status(market):
 
     # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
     if day_of_week in [5, 6]:
-        return 'CLOSE'
+        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
     
     # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
     if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-        return 'CLOSE'
+        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
 
     # 주중의 경우, API를 통해 시장 상태 확인
     api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
@@ -41,21 +41,22 @@ def check_market_status(market):
             local_traded_at = stock_basic_data.get('localTradedAt')  # 마지막 거래 시각
 
             if local_traded_at:
-                last_traded_datetime = datetime.fromisoformat(local_traded_at[:-6])  # ISO 형식에서 타임존 제외 후 변환
+                # ISO 형식에서 타임존 제외 후 변환
+                last_traded_datetime = datetime.fromisoformat(local_traded_at[:-6])  
                 print(f"[DEBUG] 마지막 거래일: {last_traded_datetime}")
 
                 # 현재 시간이 마지막 거래일보다 나중인지 확인하여 장이 휴장인지 판단
                 if last_traded_datetime.date() < now.date():
                     print("[DEBUG] 장이 휴장입니다.")
-                    return 'CLOSE'
-            
-            return market_status  # 시장 상태 반환 (예: 'CLOSE', 'OPEN')
+                    return 'CLOSE', last_traded_datetime  # 두 개의 값 반환
+                
+            return market_status, last_traded_datetime  # 두 개의 값 반환
 
         else:
-            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN' 반환
+            return 'UNKNOWN', None  # API 요청 실패 시 두 개의 값 반환
     except Exception as e:
         print(f"Error fetching API data: {e}")
-        return 'UNKNOWN'
+        return 'UNKNOWN', None  # 예외 처리 시 두 개의 값 반환
 
 def fetch_stock_yield_by_period(stock_code=None, date=None):
     # stock_code가 제공되지 않았을 때 에러 처리
