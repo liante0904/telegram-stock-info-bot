@@ -8,24 +8,22 @@ import pytz
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def check_market_status(market):
-    """한국 시간대를 기준으로 요일을 판단한 후, 시장 상태를 결정합니다."""
+    """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
     kst = pytz.timezone('Asia/Seoul')
     now = datetime.now(kst)
     day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    month = now.month            # 현재 월
     current_time = now.time()    # 현재 시간
 
     # 시간 범위 정의
     close_start_time = time(16, 30)  # 오후 16:30
     close_end_time = time(8, 0)      # 오전 08:00
 
-    # 토요일(5) 또는 일요일(6)인 경우
+    # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
     if day_of_week in [5, 6]:
         return 'CLOSE'
     
-    # 16:30부터 08:00까지의 시간 범위 확인
-    # 수능 등 기타 이유로 정규장을 16:30 까지 API로 체크
+    # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
     if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
         return 'CLOSE'
 
@@ -39,9 +37,22 @@ def check_market_status(market):
         api_response = requests.get(api_url, headers=headers)
         if api_response.status_code == 200:
             stock_basic_data = api_response.json()
-            return stock_basic_data.get('marketStatus', 'UNKNOWN')  # API 응답에서 'marketStatus' 키를 찾아 반환
+            market_status = stock_basic_data.get('marketStatus', 'UNKNOWN')  # 'marketStatus' 확인
+            local_traded_at = stock_basic_data.get('localTradedAt')  # 마지막 거래 시각
+
+            if local_traded_at:
+                last_traded_datetime = datetime.fromisoformat(local_traded_at[:-6])  # ISO 형식에서 타임존 제외 후 변환
+                print(f"[DEBUG] 마지막 거래일: {last_traded_datetime}")
+
+                # 현재 시간이 마지막 거래일보다 나중인지 확인하여 장이 휴장인지 판단
+                if last_traded_datetime.date() < now.date():
+                    print("[DEBUG] 장이 휴장입니다.")
+                    return 'CLOSE'
+            
+            return market_status  # 시장 상태 반환 (예: 'CLOSE', 'OPEN')
+
         else:
-            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN'
+            return 'UNKNOWN'  # API 요청 실패 시 'UNKNOWN' 반환
     except Exception as e:
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN'
