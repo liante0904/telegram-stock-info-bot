@@ -64,8 +64,11 @@ class CacheManager:
         close_time = time(16, 30)
 
         # 3. 마지막 거래일 정보를 바탕으로 휴장일 처리
-        # 마지막 거래일 정보가 존재하면 이를 기반으로 유효성 체크
-        last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
+        if isinstance(last_traded_at, datetime):
+            last_trading_day = last_traded_at
+        else:
+            last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
+
         last_trading_day_close_time = datetime.combine(last_trading_day.date(), close_time, kst)
 
         # 캐시 파일이 마지막 거래일 이후에 생성되었는지 확인
