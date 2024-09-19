@@ -10,22 +10,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 def check_market_status(market):
     """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
-    kst = pytz.timezone('Asia/Seoul')
-    now = datetime.now(kst)
-    day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    current_time = now.time()    # 현재 시간
+    # kst = pytz.timezone('Asia/Seoul')
+    # now = datetime.now(kst)
+    # day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
+    # current_time = now.time()    # 현재 시간
 
-    # 시간 범위 정의
-    close_start_time = time(16, 30)  # 오후 16:30
-    close_end_time = time(8, 0)      # 오전 08:00
+    # # 시간 범위 정의
+    # close_start_time = time(16, 30)  # 오후 16:30
+    # close_end_time = time(8, 0)      # 오전 08:00
 
-    # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
-    if day_of_week in [5, 6]:
-        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
+    # # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
+    # if day_of_week in [5, 6]:
+    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
     
-    # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
-    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
+    # # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
+    # if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
+    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
 
     # 주중의 경우, API를 통해 시장 상태 확인
     api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
