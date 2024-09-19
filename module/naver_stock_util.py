@@ -142,13 +142,6 @@ def search_stock_code(query):
     data = response.json()
     print(data)
     
-    # query가 6자리이고 첫 5자리가 모두 숫자인지 확인하는 함수
-    def is_query_numeric(query):
-        return len(query) == 6 and query[:5].isdigit()
-    
-    # query를 소문자로 변환하여 비교
-    query_lower = query.lower()
-        
     # 데이터 항목이 1건이면 필터링 없이 바로 반환
     if len(data['items']) == 1:
         # 반환할 항목을 추출하여 리스트로 포장
@@ -182,14 +175,15 @@ def search_stock_code(query):
         if (item['name'].strip() == str(query).strip() or item['code'] == str(query).strip())
     ]
 
-    # 추가 조건을 적용하여 최종 필터링
-    final_filtered_items = [
-        item for item in filtered_items
-        if item['nationCode'] != 'KOR' or (
-            not (40000 <= int(item['code'][0:5]) <= 49999) and 
-            '스팩' not in item['name']
-        )
-    ]
+    # 필터링 조건을 적용하여 최종 필터링
+    final_filtered_items = []
+    for item in filtered_items:
+        if item['nationCode'] != 'KOR':
+            final_filtered_items.append(item)
+        else:
+            # `nationCode`가 'KOR'인 경우 추가 조건 적용
+            if not (40000 <= int(item['code'][0:5]) <= 49999) and '스팩' not in item['name']:
+                final_filtered_items.append(item)
 
     print(final_filtered_items)
     return final_filtered_items
@@ -223,8 +217,6 @@ def search_stock_code_mobileAPI(query):
         data = response.json()
         print(data)
         
-        
-        
         # 데이터 항목이 1건이면 필터링 없이 바로 반환
         if len(data['result']['items'])  > 0:
             return data['result']['items']
@@ -247,8 +239,8 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
 
 def main():
     # r = search_stock_code_mobileAPI('이토추')
-    # r = search_stock_code('이토추')
-    r = fetch_stock_yield_by_period(stock_code='188260')
+    r = search_stock_code('이토추')
+    # r = fetch_stock_yield_by_period(stock_code='188260')
     if r:
         print('0===>', r)
         
