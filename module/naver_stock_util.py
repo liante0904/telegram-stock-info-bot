@@ -10,8 +10,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 def check_market_status(market):
     """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
-    # kst = pytz.timezone('Asia/Seoul')
-    # now = datetime.now(kst)
+    kst = pytz.timezone('Asia/Seoul')
+    now = datetime.now(kst)
     # day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
     # current_time = now.time()    # 현재 시간
 
