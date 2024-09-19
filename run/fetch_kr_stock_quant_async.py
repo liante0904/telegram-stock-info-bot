@@ -21,6 +21,8 @@ async def process_stock_info(stock_info):
             stock_code = 종목링크.split('=')[-1]
             tasks.append(fetch_quant_data_async(stock_code))
 
+        await asyncio.sleep(0.5)  # 1초 대기 후 다음 요청 처리
+
         # 비동기로 20종목씩 데이터를 가져옴
         quant_results = await asyncio.gather(*tasks)
 
