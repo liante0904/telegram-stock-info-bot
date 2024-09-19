@@ -10,22 +10,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 def check_market_status(market):
     """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
-    kst = pytz.timezone('Asia/Seoul')
-    now = datetime.now(kst)
-    day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    current_time = now.time()    # 현재 시간
+    # kst = pytz.timezone('Asia/Seoul')
+    # now = datetime.now(kst)
+    # day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
+    # current_time = now.time()    # 현재 시간
 
-    # 시간 범위 정의
-    close_start_time = time(16, 30)  # 오후 16:30
-    close_end_time = time(8, 0)      # 오전 08:00
+    # # 시간 범위 정의
+    # close_start_time = time(16, 30)  # 오후 16:30
+    # close_end_time = time(8, 0)      # 오전 08:00
 
-    # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
-    if day_of_week in [5, 6]:
-        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
+    # # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
+    # if day_of_week in [5, 6]:
+    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
     
-    # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
-    if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-        return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
+    # # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
+    # if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
+    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
 
     # 주중의 경우, API를 통해 시장 상태 확인
     api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
@@ -69,7 +69,6 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
     }
 
     def fetch_data(url):
-        # print(f"Fetching data from: {url}")  # Debugging message
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             return response.json()
@@ -77,58 +76,58 @@ def fetch_stock_yield_by_period(stock_code=None, date=None):
             print(f"Failed to fetch data: Status code {response.status_code}")
             return None
 
-    # 현재 가격 가져오기
-    basic_info_url = f'https://m.stock.naver.com/api/stock/{stock_code}/basic'
-    basic_data = fetch_data(basic_info_url)
+    # 1년간 가격 데이터를 가져오기
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365)  # 1년 전 날짜
+    start_date_str = start_date.strftime('%Y%m%d')
+    end_date_str = end_date.strftime('%Y%m%d')
 
-    if not basic_data:
+    trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={start_date_str}0000&endDateTime={end_date_str}0000'
+    trend_data = fetch_data(trend_url)
+
+    if not trend_data:
         return {}
+    
+    # print(trend_data)
 
-    current_price = int(basic_data['closePrice'].replace(',', ''))
+    # 현재 가격을 trend_data의 마지막 데이터에서 가져오기
+    current_price = int(trend_data[-1]['closePrice'])
 
-    # 날짜별 가격 가져오기
-    def fetch_past_price(days_ago):
-        past_date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y%m%d')
-        original_date = datetime.strptime(past_date, '%Y%m%d')
-        one_week_ago = original_date - timedelta(weeks=1)
-
-        while True:
-            trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={past_date}0000&endDateTime={past_date}0000'
-            trend_data = fetch_data(trend_url)
-            
-            if trend_data and len(trend_data) > 0:
-                return int(trend_data[0]['closePrice'])
-            
-            # 날짜를 하루 전으로 이동
-            original_date -= timedelta(days=1)
-            past_date = original_date.strftime('%Y%m%d')
-            
-            # 일주일 이내로 제한
-            if original_date < one_week_ago:
-                break
-        
-        return None
-
+    # 가격 데이터를 날짜별로 정리
+    prices = {item['localDate']: int(item['closePrice']) for item in trend_data}
 
     # 수익률 계산
     def calculate_return(past_price):
         if past_price is not None:
             percentage_change = round((current_price / past_price - 1) * 100, 2)
             return "{:.2f}".format(percentage_change)
-        return None
+        return "N/A"
 
-    # 1D, 1M, 6M, YTD, 1Y 수익률 계산
+    # 1D, 1W, 1M, 3M, 6M, YTD, 1Y 수익률 계산
     timeframes = {
         '1D': 1,
         '1W': 7,
         '1M': 30,
-        '3M': 90,        
+        '3M': 90,
         '6M': 180,
         'YTD': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
         '1Y': 365
     }
 
-    returns = {key: calculate_return(fetch_past_price(days)) for key, days in timeframes.items()}
+    returns = {}
+    end_date = datetime.now()
+    
+    for key, days in timeframes.items():
+        target_date = end_date - timedelta(days=days)
+        target_date_str = target_date.strftime('%Y%m%d')
+        past_price = None
+        
+        for date_str in sorted(prices.keys(), reverse=True):
+            if date_str <= target_date_str:
+                past_price = prices.get(date_str)
+                break
+        
+        returns[key] = calculate_return(past_price)
 
     return returns
 
@@ -143,13 +142,6 @@ def search_stock_code(query):
     data = response.json()
     print(data)
     
-    # query가 6자리이고 첫 5자리가 모두 숫자인지 확인하는 함수
-    def is_query_numeric(query):
-        return len(query) == 6 and query[:5].isdigit()
-    
-    # query를 소문자로 변환하여 비교
-    query_lower = query.lower()
-        
     # 데이터 항목이 1건이면 필터링 없이 바로 반환
     if len(data['items']) == 1:
         # 반환할 항목을 추출하여 리스트로 포장
@@ -183,14 +175,15 @@ def search_stock_code(query):
         if (item['name'].strip() == str(query).strip() or item['code'] == str(query).strip())
     ]
 
-    # 추가 조건을 적용하여 최종 필터링
-    final_filtered_items = [
-        item for item in filtered_items
-        if item['nationCode'] != 'KOR' or (
-            not (40000 <= int(item['code'][0:5]) <= 49999) and 
-            '스팩' not in item['name']
-        )
-    ]
+    # 필터링 조건을 적용하여 최종 필터링
+    final_filtered_items = []
+    for item in filtered_items:
+        if item['nationCode'] != 'KOR':
+            final_filtered_items.append(item)
+        else:
+            # `nationCode`가 'KOR'인 경우 추가 조건 적용
+            if not (40000 <= int(item['code'][0:5]) <= 49999) and '스팩' not in item['name']:
+                final_filtered_items.append(item)
 
     print(final_filtered_items)
     return final_filtered_items
@@ -224,8 +217,6 @@ def search_stock_code_mobileAPI(query):
         data = response.json()
         print(data)
         
-        
-        
         # 데이터 항목이 1건이면 필터링 없이 바로 반환
         if len(data['result']['items'])  > 0:
             return data['result']['items']
@@ -249,6 +240,7 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
 def main():
     # r = search_stock_code_mobileAPI('이토추')
     r = search_stock_code('이토추')
+    # r = fetch_stock_yield_by_period(stock_code='188260')
     if r:
         print('0===>', r)
         

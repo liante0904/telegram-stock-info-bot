@@ -36,7 +36,7 @@ class CacheManager:
         # 장 상태와 마지막 거래일 정보를 확인합니다.
         from module.naver_stock_util import check_market_status
         market_status, last_traded_at = check_market_status(market='KOSPI')
-
+        print(market_status, last_traded_at)
         # 1. 장중일 경우 캐시는 유효하지 않음
         if market_status == 'OPEN':
             cache_file = self._get_cache_file_path(stock_code)
