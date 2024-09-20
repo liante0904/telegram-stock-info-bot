@@ -9,80 +9,76 @@ import openpyxl
 from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
 
-def fetch_dividend_stock_list_API(page=1, pageSize=100):
+def fetch_dividend_stock_list_API(requested_stock_count=0):
+    # 기본 세팅
+    page=1 
+    # API당 fetch 수(최대)
+    pageSize = 100
+
     # CacheManager 인스턴스 생성
     cache_manager = CacheManager("cache", "dividend_stock")
-    
+
     # 전체 데이터를 담을 리스트
     all_data = []
 
-    # 페이지가 0이거나 지정되지 않은 경우 전체 페이지를 패치
+    # 첫 페이지 호출하여 전체 페이지 수와 종목 수를 알아냄
+    first_page_url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page=1&pageSize={pageSize}"
+    response = requests.get(first_page_url)
+
+    if response.status_code != 200:
+        raise Exception(f"API 요청 실패: {response.status_code}")
+
+    first_page_data = response.json()
+    total_count = first_page_data.get('totalCount', 0)
+    total_pages = (total_count // pageSize) + (1 if total_count % pageSize > 0 else 0)
+
+    # requested_stock_count가 0이거나 값이 없는 경우 전체 데이터를 가져옴
+    if requested_stock_count <= 0:
+        requested_stock_count = total_count
+
+    # 데이터를 수집할 페이지 수 계산 (requested_stock_count에 맞게)
+    required_pages = (requested_stock_count // pageSize) + (1 if requested_stock_count % pageSize > 0 else 0)
+    
+    # 전체 페이지 수와 비교하여 최소 페이지 수로 설정
     if page <= 0:
-        # 첫 페이지 호출하여 전체 페이지 수를 알아냄
-        first_page_url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page=1&pageSize={pageSize}"
-        response = requests.get(first_page_url)
-
-        if response.status_code != 200:
-            raise Exception(f"API 요청 실패: {response.status_code}")
-
-        first_page_data = response.json()
-        total_count = first_page_data.get('totalCount', 0)
-        total_pages = (total_count // pageSize) + (1 if total_count % pageSize > 0 else 0)
-
-        # 전체 페이지를 순회하며 데이터 수집
-        for p in range(1, total_pages + 1):
-            # 캐시 키를 페이지별로 구분하여 설정
-            cache_key = f'dividend_stock_{p}'
-
-            # 캐시가 유효한지 확인
-            if cache_manager.is_cache_valid(cache_key):
-                print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
-                data = cache_manager.load_cache(cache_key)
-            else:
-                print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
-                # API 호출 URL
-                url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={p}&pageSize={pageSize}"
-                response = requests.get(url)
-
-                if response.status_code != 200:
-                    raise Exception(f"API 요청 실패: {response.status_code}")
-
-                data = response.json()
-
-                # 데이터를 캐시에 저장
-                cache_manager.save_cache(cache_key, data)
-
-            # 수집된 데이터를 리스트에 추가
-            all_data.extend(data.get('dividends', []))  # 'dividends' 키로 데이터 추출
-
+        page = required_pages
     else:
-        # 지정된 페이지까지 반복하여 데이터를 수집
-        for p in range(1, page + 1):
-            # 캐시 키를 페이지별로 구분하여 설정
-            cache_key = f'dividend_stock_{p}'
+        page = min(page, required_pages)
 
-            # 캐시가 유효한지 확인
-            if cache_manager.is_cache_valid(cache_key):
-                print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
-                data = cache_manager.load_cache(cache_key)
-            else:
-                print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
-                # API 호출 URL
-                url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={p}&pageSize={pageSize}"
-                response = requests.get(url)
+    # 지정된 페이지 수만큼 데이터를 수집
+    for p in range(1, page + 1):
+        # 캐시 키를 페이지별로 구분하여 설정
+        cache_key = f'dividend_stock_{p}'
 
-                if response.status_code != 200:
-                    raise Exception(f"API 요청 실패: {response.status_code}")
+        # 캐시가 유효한지 확인
+        if cache_manager.is_cache_valid(cache_key):
+            print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
+            data = cache_manager.load_cache(cache_key)
+        else:
+            print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
+            # API 호출 URL
+            url = f"https://m.stock.naver.com/api/stocks/dividend/rate?page={p}&pageSize={pageSize}"
+            response = requests.get(url)
 
-                data = response.json()
+            if response.status_code != 200:
+                raise Exception(f"API 요청 실패: {response.status_code}")
 
-                # 데이터를 캐시에 저장
-                cache_manager.save_cache(cache_key, data)
+            data = response.json()
 
-            # 수집된 데이터를 리스트에 추가
-            all_data.extend(data.get('dividends', []))  # 'dividends' 키로 데이터 추출
+            # 데이터를 캐시에 저장
+            cache_manager.save_cache(cache_key, data)
 
-    return all_data
+        # 수집된 데이터를 리스트에 추가
+        all_data.extend(data.get('dividends', []))  # 'dividends' 키로 데이터 추출
+
+        # 수집된 데이터가 requested_stock_count에 도달하면 종료
+        if len(all_data) >= requested_stock_count:
+            print(f"[DEBUG] 요청한 {requested_stock_count}개의 데이터를 모두 수집했습니다.")
+            break
+
+    # 수집된 데이터가 requested_stock_count보다 많으면 잘라내기
+    return all_data[:requested_stock_count]
+
 
 def save_stock_data_to_excel(data, file_name='dividend_stock_data.xlsx'):
     # 데이터 프레임으로 변환
@@ -141,7 +137,7 @@ def main():
     all_data = []
     # fetch_stock_yield_by_period('005930')
     # 수집된 데이터를 리스트에 추가
-    all_data = fetch_dividend_stock_list_API(page=3)
+    all_data = fetch_dividend_stock_list_API(requested_stock_count=101)
     # 엑셀 파일로 저장
     save_stock_data_to_excel(all_data)
 
