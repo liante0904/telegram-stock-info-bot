@@ -48,6 +48,10 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
             # 엑셀 파일로 저장
             excel_file_name = os.path.join(os.getenv('EXCEL_FOLDER_PATH'), f'dividend_naver_quant_{today_date}.xlsx')
             save_stock_data_to_excel(data=all_data, file_name=excel_file_name)
+
+            # 엑셀 후처리 작업
+            process_excel_file(excel_file_name)
+            
             # Send the file to the user
             if os.path.exists(excel_file_name):
                 with open(excel_file_name, 'rb') as file:
