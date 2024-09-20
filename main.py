@@ -95,7 +95,7 @@ async def send_dividend_total_stock_count(update: Update, context: CallbackConte
     chat_id = update.effective_chat.id
     try:
         # 국내 배당 종목 수를 가져옴
-        dividend_data = fetch_dividend_stock_list_API()
+        dividend_data = fetch_dividend_stock_list_API(requested_stock_count=1)
         dividend_total_stock_count = dividend_data[0].get('totalCount', 0)  # totalCount 추출, 없을 경우 기본값 0
         dividend_message = (
             f"*국내 배당 종목 수는 {dividend_total_stock_count}개입니다\\.*\n\n"
