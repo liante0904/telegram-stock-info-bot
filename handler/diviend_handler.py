@@ -44,7 +44,7 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
             )
             print(f"요청된 종목 수: {requested_stock_count}, 페이지 수: {page_count}")
             # 수집된 데이터를 리스트에 추가
-            all_data = fetch_dividend_stock_list_API(page=page_count)
+            all_data = fetch_dividend_stock_list_API(requested_stock_count=requested_stock_count)
             # 엑셀 파일로 저장
             excel_file_name = os.path.join(os.getenv('EXCEL_FOLDER_PATH'), f'dividend_naver_quant_{today_date}.xlsx')
             save_stock_data_to_excel(data=all_data, file_name=excel_file_name)
@@ -60,7 +60,7 @@ async def send_dividend_stock_excel_quant(update: Update, context: CallbackConte
             )
             print(f"전체 종목 전송: 페이지 수는 {page_count}")
             # 전체 종목 전송 로직 추가 (필요 시 함수 호출)
-            all_data = fetch_dividend_stock_list_API(page=page_count)
+            all_data = fetch_dividend_stock_list_API(requested_stock_count=0)
             # 엑셀 파일로 저장
             excel_file_name = os.path.join(os.getenv('EXCEL_FOLDER_PATH'), f'dividend_naver_quant_{today_date}.xlsx')
             save_stock_data_to_excel(data=all_data, file_name=excel_file_name)

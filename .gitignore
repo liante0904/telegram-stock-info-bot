@@ -5,6 +5,7 @@ Thumbs.db
 # 로컬 환경 설정 파일
 *.local
 *.env
+
 # 로그 파일 및 디렉토리
 logs/
 *.log
@@ -26,6 +27,7 @@ venv/
 __pycache__/
 *.py[cod]
 *.pyo
+.python-version
 
 # 기타
 .idea/
