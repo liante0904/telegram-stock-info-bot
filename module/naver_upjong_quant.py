@@ -3,10 +3,15 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd  # pandas를 추가합니다
+import sys
+import os
+# 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.cache_manager import CacheManager
 
 from module.naver_stock_util import fetch_stock_yield_by_period, search_stock_code
 from datetime import datetime
+from finvizfinance.quote import finvizfinance
 
 def fetch_upjong_list_API():
     cache_manager = CacheManager("cache", "upjong")
@@ -111,7 +116,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     if 'domestic' in url:  # 국내 주식
         data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
     elif 'worldstock' in url:  # 해외 주식
-        data = fetch_worldstock_info(headers, stock_code, reutersCode)
+        data = fetch_worldstock_info(stock_code)
     else:
         raise ValueError("Invalid URL format. Must contain 'domestic' or 'worldstock'.")
     
@@ -254,7 +259,49 @@ def fetch_domestic_stock_info(headers, stock_code, reutersCode):
 
     return data
 
-def fetch_worldstock_info(headers, stock_code, reutersCode):
+def fetch_worldstock_info(stock_code):
+    """finviz 용으로 재 작성"""
+    stock = finvizfinance(stock_code)
+    
+    # Fundament
+    stock_fundament = stock.ticker_fundament()
+    print(stock_fundament)
+    # Description
+    # stock_description = stock.ticker_description()
+    # print(stock_description)
+
+
+    
+    # stock_data = stock_fundament.json()
+    print(stock_fundament.get('Company'))
+    data = {
+        '종목명': stock_fundament['Company'],  # 'Company': 'Tesla Inc'
+        'PER': stock_fundament['P/E'],  # 'P/E': '66.91'
+        'fwdPER': stock_fundament['Forward P/E'],  # 'Forward P/E': '74.86'
+        'PBR': stock_fundament['P/B'],  # 'P/B': '11.45'
+        '배당수익률': stock_fundament['Dividend TTM'],  # 'Dividend TTM': '-'
+        '예상배당수익률': stock_fundament['Dividend Est.'],  # 'Dividend Est.': '-'
+        'ROE': stock_fundament['ROE'],  # 'ROE': '21.13%'
+        '현재가': stock_fundament['Price'],  # 'Price': '238.25'
+        '전일비': stock_fundament['Prev Close'],  # 'Prev Close': '243.92'
+        '등락률': stock_fundament['Change'],  # 'Change': '-2.32%'
+        '비고(메모)': stock_fundament['Trades'],  # 'Trades': '\n\n'
+        '1D': stock_fundament['Change'],  # 'Change': '-2.32%'
+        '1W': stock_fundament['Perf Week'],  # 'Perf Week': '3.46%'
+        '1M': stock_fundament['Perf Month'],  # 'Perf Month': '6.71%'
+        '3M': stock_fundament['Perf Quarter'],  # 'Perf Quarter': '30.18%'
+        '6M': stock_fundament['Perf Half Y'],  # 'Perf Half Y': '37.86%'
+        'YTD': stock_fundament['Perf YTD'],  # 'Perf YTD': '-4.12%'
+        '1Y': stock_fundament['Perf Year'],  # 'Perf Year': '-9.27%'
+        '종목코드': stock.ticker,  # 'Ticker': 'TSLA'
+        '네이버url': ''  # 'Naver URL': 'NDX, S&P 500'
+    }
+
+    print(data)
+
+    return data
+
+def fetch_worldstock_info_NAVER(headers, stock_code, reutersCode):
     api_url = f'https://api.stock.naver.com/stock/{reutersCode}/basic'
     print('='*5 , 'fetch_worldstock_info', '='*5 )
     print(api_url)
@@ -603,6 +650,7 @@ def main():
 # 함수 사용 예
 if __name__ == "__main__":
     # main()
-    upjong_list = fetch_upjong_list_API()
-    for item in upjong_list:
-        print(item)
+    # upjong_list = fetch_upjong_list_API()
+    # for item in upjong_list:
+    #     print(item)
+    fetch_worldstock_info()
