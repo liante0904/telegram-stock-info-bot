@@ -25,7 +25,7 @@ args = parser.parse_args()
 SHEET_TYPE = args.sheet_type
 
 # 업종 검색 처리
-upjong_list = fetch_upjong_list_API()
+upjong_list = fetch_upjong_list_API('KOR')
 upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
 
 # Ensure the folder exists
