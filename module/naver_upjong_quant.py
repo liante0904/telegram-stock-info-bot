@@ -13,10 +13,10 @@ from module.naver_stock_util import fetch_stock_yield_by_period, search_stock_co
 from datetime import datetime
 from finvizfinance.quote import finvizfinance
 
-def fetch_upjong_list_API():
+def fetch_upjong_list_API(nation_code):
     cache_manager = CacheManager("cache", "upjong")
     
-    if cache_manager.is_cache_valid('upjong'):
+    if cache_manager.is_cache_valid('upjong', nation_code):
         print("[DEBUG] 유효한 캐시를 발견했습니다.")
         return cache_manager.load_cache('upjong').get('result', [])
     
@@ -98,13 +98,13 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         raise ValueError("Either 'stock_code' or 'stock_name' or 'url' or 'reutersCode' must be provided.")
     else:
         results = search_stock_code(stock_code)
-        stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+        stock_code, stock_name, url, reutersCode, nationCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode'], results[0]['nationCode']
     
     # 캐시 디렉토리와 파일 접두어 설정
     cache_manager = CacheManager("cache", "stock")
 
     # 캐시 유효성 검사
-    if cache_manager.is_cache_valid(stock_code):
+    if cache_manager.is_cache_valid(stock_code, nationCode):
         print("[DEBUG] 유효한 캐시를 발견했습니다.")
         return cache_manager.load_cache(stock_code).get('result', {})
     
@@ -115,21 +115,15 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     # 국내 & 해외 주식 분기
     if 'domestic' in url:  # 국내 주식
         data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
+        # 기간 수익률 데이터 처리 (국내 주식의 경우만)
+        yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+        for key, value in yield_data_dict.items():
+            data[key] = value
     elif 'worldstock' in url:  # 해외 주식
         data = fetch_worldstock_info(stock_code)
     else:
         raise ValueError("Invalid URL format. Must contain 'domestic' or 'worldstock'.")
-    
-    # 해외 주식인 경우 기간 수익률 미지원 처리
-    if 'worldstock' in url:
-        # 캐시 저장 후, 지금까지 처리된 데이터를 반환
-        cache_manager.save_cache(stock_code, {'result': data})
-        return data
 
-    # 추가된 부분: 기간 수익률 데이터 처리 (국내 주식의 경우만)
-    yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
-    for key, value in yield_data_dict.items():
-        data[key] = value
     
     # 데이터 내 숫자 형식으로 변환이 필요한 항목 처리
     numeric_keys = ['PER', 'PBR', '배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
@@ -166,6 +160,11 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         '네이버url': data.get('네이버url', 'N/A'),
     }
 
+
+    # 해외 주식일 때만 'FinvizUrl' 추가
+    if 'worldstock' in url:  # 해외 주식
+        ordered_data['FinvizUrl'] = data.get('FinvizUrl', 'N/A')
+        
     # 캐시 저장
     cache_manager.save_cache(stock_code, {'result': ordered_data})
 
@@ -294,7 +293,8 @@ def fetch_worldstock_info(stock_code):
             'YTD': stock_fundament['Perf YTD'],  # 'Perf YTD': '26.84%'
             '1Y': stock_fundament['Perf Year'],  # 'Perf Year': '26.68%'
             '종목코드': stock.ticker,  # 'Ticker': N/A (ETF에는 종목 코드 정보가 없음)
-            '네이버url': ''  # 'Naver URL': N/A
+            '네이버url': '',  # 'Naver URL': N/A
+            'FinvizUrl': stock.quote_url  # 'Finviz URL'
         }
     else:
         data = {
@@ -623,7 +623,7 @@ def main():
     parser.add_argument('option', type=str, nargs='?', help='옵션: 퀀트 정보를 가져오려면 "퀀트"를 입력하세요.')
     args = parser.parse_args()
     
-    upjong_list = fetch_upjong_list_API()
+    upjong_list = fetch_upjong_list_API('KOR')
     
     if args.upjong_name:
         # 업종명을 입력받은 경우
