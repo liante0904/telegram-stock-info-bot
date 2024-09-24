@@ -13,7 +13,8 @@ DateTime==5.5
 Deprecated==1.2.14
 et-xmlfile==1.1.0
 exceptiongroup==1.2.1
-finvizfinance==1.0.1
+# finvizfinance==1.0.1
+git+https://github.com/liante0904/finvizfinance.git@master#egg=finvizfinance
 fonttools==4.53.0
 frozenlist==1.4.1
 h11==0.14.0
