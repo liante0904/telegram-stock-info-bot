@@ -29,6 +29,10 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
         raise Exception(f"API 요청 실패: {response.status_code}")
 
     first_page_data = response.json()
+    # nationCode 값을 0번째 인덱스에서 가져오기
+    nation_code = first_page_data['dividends'][0]['stockExchangeType']['nationCode']
+    print(f"0번째 인덱스 종목의 Nation Code: {nation_code}")
+
     total_count = first_page_data.get('totalCount', 0)
     total_pages = (total_count // pageSize) + (1 if total_count % pageSize > 0 else 0)
 
@@ -51,7 +55,7 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
         cache_key = f'dividend_stock_{p}'
 
         # 캐시가 유효한지 확인
-        if cache_manager.is_cache_valid(cache_key):
+        if cache_manager.is_cache_valid(cache_key, nation_code):
             print(f"[DEBUG] 유효한 캐시를 발견했습니다. (Page {p})")
             data = cache_manager.load_cache(cache_key)
         else:
