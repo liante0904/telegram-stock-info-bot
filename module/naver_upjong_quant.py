@@ -122,7 +122,6 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     
     # 해외 주식인 경우 기간 수익률 미지원 처리
     if 'worldstock' in url:
-        print("[DEBUG] 해외 주식은 '기간 수익률' 데이터를 지원하지 않습니다.")
         # 캐시 저장 후, 지금까지 처리된 데이터를 반환
         cache_manager.save_cache(stock_code, {'result': data})
         return data
@@ -318,7 +317,8 @@ def fetch_worldstock_info(stock_code):
             'YTD': stock_fundament['Perf YTD'],  # 'Perf YTD': '-4.12%'
             '1Y': stock_fundament['Perf Year'],  # 'Perf Year': '-9.27%'
             '종목코드': stock.ticker,  # 'Ticker': 'TSLA'
-            '네이버url': ''  # 'Naver URL': 'NDX, S&P 500'
+            '네이버url': '',  # 'Naver URL': 'NDX, S&P 500'
+            'FinvizUrl': stock.quote_url  # 'Finviz URL'
         }
 
 
