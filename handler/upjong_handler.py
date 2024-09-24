@@ -6,7 +6,7 @@ from module.naver_upjong_quant import fetch_upjong_list_API
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     try:
-        upjong_list = fetch_upjong_list_API()
+        upjong_list = fetch_upjong_list_API('KOR')
         upjong_message = "업종 목록:\n"
         upjong_map = {i: (업종명, 등락률, 링크) for i, (업종명, 등락률, 링크) in enumerate(upjong_list, 1)}
         
