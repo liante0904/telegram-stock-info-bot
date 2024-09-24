@@ -3,7 +3,6 @@ from datetime import datetime, time, timedelta
 import pytz
 import os
 
-
 class CacheManager:
     def __init__(self, cache_dir, cache_file_prefix):
         self.cache_dir = cache_dir
@@ -27,90 +26,129 @@ class CacheManager:
         with open(cache_file, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
 
-    def is_cache_valid(self, stock_code):
+
+    def is_cache_valid(self, stock_code, nation_code):
         # 타임존 설정
         kst = pytz.timezone('Asia/Seoul')
         now = datetime.now(kst)
         day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
+        market_open_time = time(9, 0)
+        market_close_time = time(16, 40)
 
-        # 장 상태와 마지막 거래일 정보를 확인합니다.
+        # 장 상태와 마지막 거래일자 및 시간 정보를 확인합니다.
         from module.naver_stock_util import check_market_status
-        market_status, last_traded_at = check_market_status(market='KOSPI')
-        print(market_status, last_traded_at)
-        # 1. 장중일 경우 캐시는 유효하지 않음
-        if market_status == 'OPEN':
-            cache_file = self._get_cache_file_path(stock_code)
+        market_status, last_traded_at = check_market_status(nation_code)
 
-            if os.path.exists(cache_file):
-                file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
-                # 파일이 생성된 후 5분 이내인지 확인
-                if (now - file_mod_time) < timedelta(minutes=5):
-                    print(f"[DEBUG] 장중이며 5분 이내 생성된 캐시가 있습니다. 유효 처리됩니다. (생성 시각: {file_mod_time})")
-                    return True
+        print(f"[DEBUG] 조회 국가 코드 : {nation_code}")
+        print(f"[DEBUG] 마켓 상태: {market_status}, 마지막 거래일자: {last_traded_at}")
 
-            # 장중이지만 캐시는 유효하지 않음
-            return False
-
-        # 2. 장마감 또는 휴장일 처리
+        # 캐시 파일 경로 확인
         cache_file = self._get_cache_file_path(stock_code)
 
-        if not os.path.exists(cache_file):
+        if os.path.exists(cache_file):
+            file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
+            print(f"[DEBUG] 캐시 생성 시간: {file_mod_time}")
+        else:
             print("[DEBUG] 유효한 캐시가 없으므로 데이터를 호출합니다.")
             return False
 
-        file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
+        # 한국 주식일 때만 16:30 설정
+        if nation_code == 'KOR':
+            close_time = time(16, 30)
 
-        # 16:30 설정
-        close_time = time(16, 30)
+            # 마지막 거래일자 및 시간을 처리
+            if isinstance(last_traded_at, datetime):
+                last_trading_day = last_traded_at
+            else:
+                last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
 
-        # 3. 마지막 거래일 정보를 바탕으로 휴장일 처리
-        if isinstance(last_traded_at, datetime):
-            last_trading_day = last_traded_at
+            last_trading_day_close_time = datetime.combine(last_trading_day.date(), close_time, kst)
+
+            # 한국 주식의 경우
+            if market_status == 'OPEN':
+                # 장중일 때는 5분 이내 캐시가 유효
+                if (now - file_mod_time) < timedelta(minutes=5):
+                    print(f"[DEBUG] 장중이며 5분 이내 생성된 캐시가 있습니다. 유효 처리됩니다. (생성 시각: {file_mod_time})")
+                    return True
+                print("[DEBUG] 장중이지만 캐시가 유효하지 않습니다.")
+                return False
+
+            if market_status == 'CLOSE':
+                # 개장시간 내에 CLOSE 상태로, 마지막 거래일자가 오늘보다 이전이며 현재 요일이 평일인 경우 휴장일로 간주
+                if market_open_time <= now.time() <= market_close_time and last_trading_day.date() < now.date() and day_of_week < 5:
+                    print(f"[DEBUG] 개장시간 내 CLOSE 상태이며, 마지막 거래일자가 오늘보다 이전이고 현재 요일이 평일입니다. 휴장일로 간주.")
+                    return False
+
+                # 장 마감 이후 생성된 캐시가 유효
+                if file_mod_time > last_trading_day_close_time:
+                    print(f"[DEBUG] 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
+                    return True
+
+                # 금요일 장 마감 이후 ~ 주말 및 월요일 0시 ~ 8시까지는 금요일 16시 30분 이후 생성된 캐시가 유효
+                if day_of_week == 0 and now.time() < time(8, 0):
+                    last_friday = now - timedelta(days=3)  # 지난 금요일
+                    last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
+                    if file_mod_time > last_friday_close_time:
+                        print(f"[DEBUG] 월요일 0시~8시까지 금요일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
+                        return True
+                    print("[DEBUG] 월요일 0시~8시까지 생성된 캐시가 금요일 장 마감 이후가 아닙니다.")
+                    return False
+
+                # 평일의 경우 장 마감 이후 생성된 캐시가 유효
+                if day_of_week < 5:
+                    today_close_time = datetime.combine(now.date(), close_time, kst)
+                    if file_mod_time > today_close_time:
+                        print(f"[DEBUG] 평일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
+                        return True
+                    print("[DEBUG] 평일 장 마감 이후 생성된 캐시가 아닙니다.")
+                    return False
+
+                # 주말의 경우, 금요일 장 마감 이후 생성된 캐시가 유효
+                if day_of_week >= 5:
+                    last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
+                    last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
+                    if file_mod_time > last_friday_close_time:
+                        print(f"[DEBUG] 주말의 경우 금요일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
+                        return True
+                    print("[DEBUG] 주말에 생성된 캐시가 금요일 장 마감 이후가 아닙니다.")
+                    return False
+
+        # 해외 주식의 경우
         else:
-            last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
-
-        last_trading_day_close_time = datetime.combine(last_trading_day.date(), close_time, kst)
-
-        # 캐시 파일이 마지막 거래일 이후에 생성되었는지 확인
-        if file_mod_time > last_trading_day_close_time:
-            print(f"[DEBUG] 마지막 거래일 {last_trading_day} 이후 생성된 캐시. 유효 처리됩니다.")
-            return True
-
-        # 4. 휴장일(예: 명절) 처리
-        # 평일(월~금) 중 장이 열리지 않은 경우에도 전 거래일을 기준으로 캐시를 처리
-        if market_status == 'CLOSE' and day_of_week < 5:
-            print(f"[DEBUG] 휴장일로 추정됩니다. 마지막 거래일: {last_trading_day}")
-            if file_mod_time > last_trading_day_close_time:
-                return True
-            else:
+            # 해외 주식은 장중에 캐시를 유효하지 않다고 가정
+            if market_status == 'OPEN':
+                print("[DEBUG] 해외 주식은 장중에 캐시를 유효하지 않다고 가정합니다.")
                 return False
 
-        # 5. 월요일 0시부터 8시까지는 주말과 동일하게 처리
-        if day_of_week == 0 and now.time() < time(8, 0):  # 월요일, 0시~8시
-            last_friday = now - timedelta(days=3)  # 지난 금요일
-            last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
-            if file_mod_time > last_friday_close_time:
-                return True
-            else:
-                return False
+            # 해외 주식은 장 마감 이후 유효 처리
+            if market_status == 'CLOSE':
+                if isinstance(last_traded_at, datetime):
+                    last_trading_day = last_traded_at
+                else:
+                    last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
 
-        # 6. 평일인 경우 캐시가 당일 16시 30분 이후에 생성됐다면 유효캐시임
-        if day_of_week < 5:  # 월요일~금요일
-            today_close_time = datetime.combine(now.date(), close_time, kst)
-            if file_mod_time > today_close_time:
-                return True
-            else:
-                return False
+                last_trading_day_close_time = datetime.combine(last_trading_day.date(), time(16, 30), kst)
+                if file_mod_time > last_trading_day_close_time:
+                    print(f"[DEBUG] 해외 주식의 마지막 거래일 {last_trading_day} 이후 생성된 캐시. 유효 처리됩니다.")
+                    return True
 
-        # 7. 조회일이 주말인 경우
-        if day_of_week >= 5:  # 토요일~일요일
-            # 캐시가 금요일 16시 30분 이후 생성된 캐시라면 유효캐시다
-            last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
-            last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
-            if file_mod_time > last_friday_close_time:
-                return True
-            else:
-                return False
+                # 해외 주식은 평일, 주말 구분 없이 장 마감 이후 유효 처리
+                if day_of_week < 5:
+                    today_close_time = datetime.combine(now.date(), time(16, 30), kst)
+                    if file_mod_time > today_close_time:
+                        print(f"[DEBUG] 평일 장 마감 이후 생성된 해외 주식 캐시. 유효 처리됩니다.")
+                        return True
+                    print("[DEBUG] 평일 장 마감 이후 생성된 해외 주식 캐시가 아닙니다.")
+                    return False
+
+                if day_of_week >= 5:
+                    last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
+                    last_friday_close_time = datetime.combine(last_friday.date(), time(16, 30), kst)
+                    if file_mod_time > last_friday_close_time:
+                        print(f"[DEBUG] 주말의 경우 금요일 장 마감 이후 생성된 해외 주식 캐시. 유효 처리됩니다.")
+                        return True
+                    print("[DEBUG] 주말에 생성된 해외 주식 캐시가 금요일 장 마감 이후가 아닙니다.")
+                    return False
 
         print("[DEBUG] 유효한 캐시가 아닙니다. 새 데이터를 호출합니다.")
         return False
