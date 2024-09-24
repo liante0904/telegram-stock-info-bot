@@ -7,53 +7,54 @@ import pytz
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-def check_market_status(market):
-    """한국 시간대를 기준으로 요일을 판단한 후, API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
+def check_market_status(nation_code):
+    """주어진 nation_code에 따라 API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
     kst = pytz.timezone('Asia/Seoul')
     now = datetime.now(kst)
-    # day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-    # current_time = now.time()    # 현재 시간
 
-    # # 시간 범위 정의
-    # close_start_time = time(16, 30)  # 오후 16:30
-    # close_end_time = time(8, 0)      # 오전 08:00
+    # nation_code에 따른 API URL 정의
+    if nation_code == 'KOR':
+        api_url = 'https://m.stock.naver.com/api/index/KOSPI/basic'  # 한국 시장
+    else:
+        api_url = f'https://api.stock.naver.com/index/nation/{nation_code}'  # 해외 시장
 
-    # # 토요일(5) 또는 일요일(6)인 경우 장이 닫혀있음
-    # if day_of_week in [5, 6]:
-    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
-    
-    # # 16:30 이후 혹은 월요일 08:00 이전인 경우 장이 닫혀있음
-    # if (current_time >= close_start_time) or (day_of_week == 0 and current_time < close_end_time):
-    #     return 'CLOSE', None  # 두 개의 값을 반환하도록 수정
-
-    # 주중의 경우, API를 통해 시장 상태 확인
-    api_url = f'https://m.stock.naver.com/api/index/{market}/basic'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    
+
     try:
         api_response = requests.get(api_url, headers=headers)
         if api_response.status_code == 200:
             stock_basic_data = api_response.json()
-            market_status = stock_basic_data.get('marketStatus', 'UNKNOWN')  # 'marketStatus' 확인
-            local_traded_at = stock_basic_data.get('localTradedAt')  # 마지막 거래 시각
 
+            # 한국 시장 데이터 처리
+            if nation_code == 'KOR':
+                market_status = stock_basic_data.get('marketStatus', 'UNKNOWN')
+                local_traded_at = stock_basic_data.get('localTradedAt')
+            
+            # 해외 시장 데이터 처리 (첫 번째 거래소 정보 기준)
+            else:
+                first_exchange_data = stock_basic_data[0]  # 가장 첫 번째 거래소 데이터를 사용
+                market_status = first_exchange_data.get('marketStatus', 'UNKNOWN')
+                local_traded_at = first_exchange_data.get('localTradedAt')
+
+            # localTradedAt 값이 존재하는 경우 처리
             if local_traded_at:
                 # ISO 형식에서 타임존 제외 후 변환
-                last_traded_datetime = datetime.fromisoformat(local_traded_at[:-6])  
+                last_traded_datetime = datetime.fromisoformat(local_traded_at[:-6])
                 print(f"[DEBUG] 마지막 거래일: {last_traded_datetime}")
 
                 # 현재 시간이 마지막 거래일보다 나중인지 확인하여 장이 휴장인지 판단
                 if last_traded_datetime.date() < now.date():
                     print("[DEBUG] 장이 휴장입니다.")
                     return 'CLOSE', last_traded_datetime  # 두 개의 값 반환
-                
+
             return market_status, last_traded_datetime  # 두 개의 값 반환
 
         else:
             return 'UNKNOWN', None  # API 요청 실패 시 두 개의 값 반환
+
     except Exception as e:
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN', None  # 예외 처리 시 두 개의 값 반환
@@ -239,8 +240,9 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
 
 def main():
     # r = search_stock_code_mobileAPI('이토추')
-    r = search_stock_code('이토추')
+    # r = search_stock_code('이토추')
     # r = fetch_stock_yield_by_period(stock_code='188260')
+    r = check_market_status('JPN')
     if r:
         print('0===>', r)
         
