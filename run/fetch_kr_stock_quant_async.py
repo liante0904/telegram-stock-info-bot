@@ -49,7 +49,7 @@ async def process_upjong(upjong_map):
 
 # 비동기 작업 실행
 if __name__ == '__main__':
-    upjong_list = fetch_upjong_list_API()
+    upjong_list = fetch_upjong_list_API('KOR')
     upjong_map = {업종명: (등락률, 링크) for 업종명, 등락률, 링크 in upjong_list}
 
     # 비동기 작업 실행
