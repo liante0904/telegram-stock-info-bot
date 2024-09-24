@@ -294,7 +294,7 @@ def fetch_worldstock_info(stock_code):
             '6M': stock_fundament['Perf Half Y'],  # 'Perf Half Y': '25.79%'
             'YTD': stock_fundament['Perf YTD'],  # 'Perf YTD': '26.84%'
             '1Y': stock_fundament['Perf Year'],  # 'Perf Year': '26.68%'
-            '종목코드': 'N/A',  # 'Ticker': N/A (ETF에는 종목 코드 정보가 없음)
+            '종목코드': stock.ticker,  # 'Ticker': N/A (ETF에는 종목 코드 정보가 없음)
             '네이버url': ''  # 'Naver URL': N/A
         }
     else:
