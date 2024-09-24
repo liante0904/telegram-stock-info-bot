@@ -172,7 +172,7 @@ def search_stock_code(query):
             'nationName': item['nationName']
         }
         for item in data['items']
-        if (item['name'].strip() == str(query).strip() or item['code'] == str(query).strip())
+        if (item['name'].strip().lower() == str(query).strip().lower() or item['code'].lower() == str(query).strip().lower())
     ]
 
     # 필터링 조건을 적용하여 최종 필터링
