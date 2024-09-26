@@ -143,23 +143,6 @@ def search_stock_code(query):
     data = response.json()
     print(data)
     
-    # 데이터 항목이 1건이면 필터링 없이 바로 반환
-    if len(data['items']) == 1:
-        # 반환할 항목을 추출하여 리스트로 포장
-        item = data['items'][0]
-        result = [{
-            'name': item['name'],
-            'code': item['code'],
-            'typeCode': item['typeCode'],
-            'typeName': item['typeName'],
-            'url': item['url'],
-            'reutersCode': item['reutersCode'],
-            'nationCode': item['nationCode'],
-            'nationName': item['nationName']
-        }]
-        print(result)
-        return result
-
     # 필터링된 결과를 저장할 리스트
     filtered_items = [
         {
@@ -175,19 +158,42 @@ def search_stock_code(query):
         for item in data['items']
         if (item['name'].strip().lower() == str(query).strip().lower() or item['code'].lower() == str(query).strip().lower())
     ]
-
-    # 필터링 조건을 적용하여 최종 필터링
-    final_filtered_items = []
-    for item in filtered_items:
+    
+    # `query`와 일치하는 항목이 있을 경우 해당 항목 반환
+    if filtered_items:
+        print(filtered_items)
+        return filtered_items
+    
+    # `query`와 일치하는 항목이 없는 경우, 스팩주를 제거한 나머지 항목 반환
+    non_spec_items = []
+    for item in data['items']:
         if item['nationCode'] != 'KOR':
-            final_filtered_items.append(item)
+            non_spec_items.append({
+                'name': item['name'],
+                'code': item['code'],
+                'typeCode': item['typeCode'],
+                'typeName': item['typeName'],
+                'url': item['url'],
+                'reutersCode': item['reutersCode'],
+                'nationCode': item['nationCode'],
+                'nationName': item['nationName']
+            })
         else:
             # `nationCode`가 'KOR'인 경우 추가 조건 적용
             if not (40000 <= int(item['code'][0:5]) <= 49999) and '스팩' not in item['name']:
-                final_filtered_items.append(item)
-
-    print(final_filtered_items)
-    return final_filtered_items
+                non_spec_items.append({
+                    'name': item['name'],
+                    'code': item['code'],
+                    'typeCode': item['typeCode'],
+                    'typeName': item['typeName'],
+                    'url': item['url'],
+                    'reutersCode': item['reutersCode'],
+                    'nationCode': item['nationCode'],
+                    'nationName': item['nationName']
+                })
+    
+    print(non_spec_items)
+    return non_spec_items
 
 def search_stock_code_mobileAPI(query):
     # 네이버 API를 통한 해외 주식 조회 로직
