@@ -97,7 +97,7 @@ def draw_chart(stock_code, stock_name):
     ax1.plot(data.index, data['시가총액 오실레이터'], label=f'{stock_name} 시가총액 오실레이터', color='tab:blue')
     ax1.tick_params(axis='y', labelcolor='tab:blue')
     ax1.axhline(0, color='gray', linestyle='--')  # Baseline
-    ax1.set_ylim(data['시가총액 오실레이터'].min() * 1.1, data['시가총액 오실레이터'].max() * 1.1)
+    ax1.set_ylim(data['시가총액 오실레이터'].min() , data['시가총액 오실레이터'].max() )
 
     # Supply-Demand Oscillator
     ax2 = ax1.twinx()
@@ -105,7 +105,7 @@ def draw_chart(stock_code, stock_name):
     ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color='tab:red')
     ax2.tick_params(axis='y', labelcolor='tab:red')
     ax2.axhline(0, color='gray', linestyle='--')  # Baseline
-    ax2.set_ylim(data['수급오실레이터'].min() * 1.1, data['수급오실레이터'].max() * 1.1)
+    ax2.set_ylim(data['수급오실레이터'].min() , data['수급오실레이터'].max() )
 
     # X-axis formatting
     ax1.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
