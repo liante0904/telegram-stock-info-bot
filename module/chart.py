@@ -11,12 +11,6 @@ import platform
 
 CHART_DIR = "chart/"
 
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime, timedelta
-
 # 변환 및 반올림 함수
 def convert_and_round(value):
     return round(value / 1e9, 3)  # 10억 단위로 변환 및 반올림
@@ -26,7 +20,6 @@ def draw_chart(stock_code, stock_name):
         os.makedirs(CHART_DIR)
     
     now = datetime.now()
-    now = datetime.strptime(now, '%Y-%m-%d %H:%M:%S.%f')
     end_date = now.strftime('%Y-%m-%d')
 
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
@@ -88,62 +81,46 @@ def draw_chart(stock_code, stock_name):
 
     print(data)
 
-    # CSV 파일로 저장 (시가총액 오실레이터와 수급 오실레이터만 저장)
+    # Save CSV
     csv_filename = os.path.join(CHART_DIR, f'{stock_name}_{stock_code}_data.csv')
-    data[['시가총액 오실레이터', '수급오실레이터']].to_csv(csv_filename, encoding='utf-8-sig')  # utf-8-sig로 인코딩하여 저장
+    data[['시가총액 오실레이터', '수급오실레이터']].to_csv(csv_filename, encoding='utf-8-sig')
     print(f"Data saved as: {csv_filename}")
 
-    # 그래프 그리기
-    fig, ax1 = plt.subplots(figsize=(10, 8))  # 가로 10, 세로 8로 설정
-    color = 'tab:blue'
+    # Plotting
+    fig, ax1 = plt.subplots(figsize=(10, 8))
+    
+    # Market Cap Oscillator
     ax1.set_xlabel('날짜')
-    ax1.set_ylabel('시가총액 (억원)', color=color)  # Y축 레이블 수정
-    ax1.plot(data.index, data['시가총액 오실레이터'], label=f'{stock_name} 시가총액 오실레이터', color=color)
-    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_ylabel('시가총액 (억원)', color='tab:blue')
+    ax1.plot(data.index, data['시가총액 오실레이터'], label=f'{stock_name} 시가총액 오실레이터', color='tab:blue')
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+    ax1.axhline(0, color='gray', linestyle='--')  # Baseline
+    ax1.set_ylim(data['시가총액 오실레이터'].min() * 1.1, data['시가총액 오실레이터'].max() * 1.1)
 
-    # 시가총액 오실레이터의 첫 번째 값 기준으로 0% 위치 조정
-    baseline = data['시가총액 오실레이터'].iloc[0]
-    max_value = data['시가총액 오실레이터'].max()  # 최대값 추가
-    ax1.set_ylim([baseline * 0.95, max_value * 1.05])  # 최대값에 따라 y축 상한 조정
-    ax1.axhline(0, color='gray', linestyle='--')  # 기준선 추가
-
-
+    # Supply-Demand Oscillator
     ax2 = ax1.twinx()
-    color = 'tab:red'
-    ax2.set_ylabel('수급 오실레이터 (%)', color=color)
-    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color=color)
-    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylabel('수급 오실레이터 (%)', color='tab:red')
+    ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color='tab:red')
+    ax2.tick_params(axis='y', labelcolor='tab:red')
+    ax2.axhline(0, color='gray', linestyle='--')  # Baseline
+    ax2.set_ylim(data['수급오실레이터'].min() * 1.1, data['수급오실레이터'].max() * 1.1)
 
-    # 수급 오실레이터의 첫 번째 값 기준으로 0% 위치 조정
-    osc_baseline = data['수급오실레이터'].iloc[0]
-    osc_min = data['수급오실레이터'].min()
-    osc_max = data['수급오실레이터'].max()
-    osc_range = osc_max - osc_min
-    ax2.set_ylim([osc_min - osc_range * 0.1, osc_max + osc_range * 0.1])
-    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}%'))
-
-    # X축 눈금을 7일 간격으로 설정
+    # X-axis formatting
     ax1.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
     ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     fig.autofmt_xdate()
 
-    # X축 마지막 일자 항상 표시
-    ax1.set_xticks(list(ax1.get_xticks()) + [mdates.date2num(data.index[-1])])
-    ax1.set_xticklabels([item.get_text() if i != len(ax1.get_xticks()) - 1 else data.index[-1].strftime('%Y-%m-%d') for i, item in enumerate(ax1.get_xticklabels())])
+    plt.title(f'{stock_name} 시가총액 오실레이터과 수급 오실레이터(매수금액기준)', fontsize=24, pad=40)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
 
-    plt.title(f'{stock_name} 시가총액 오실레이터 과 수급 오실레이터(매수금액기준)', fontsize=24, pad=40)  # 글씨 크기를 24포인트로 설정하고 아래로 40포인트 패딩
-    fig.legend(loc='upper left', bbox_to_anchor=(0.1, 0.9))
-
-    fig.tight_layout(rect=[0, 0, 1, 0.95])  # 타이틀 공간 확보를 위해 rect 조정
-
-    # 마지막 데이터 날짜로 파일명 생성
+    # Save chart
     last_date = data.index[-1].strftime('%Y%m%d')
     chart_filename = os.path.join(CHART_DIR, f'{stock_name}_{stock_code}_{last_date}_chart.png')
-    fig.savefig(chart_filename, format='png')
+    fig.savefig(chart_filename, format='png', bbox_inches='tight')
     plt.close(fig)
     print(f"Chart saved as: {chart_filename}")
-    return chart_filename
 
+    return chart_filename
 
 def open_image(image_path):
     if 'WSL' in os.uname().release:
