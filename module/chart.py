@@ -28,17 +28,17 @@ def draw_chart(stock_code, stock_name):
     
     trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='순매수')
     
-    # 기관과 외국인의 매수 금액 5일 합 계산
-    trading_value['외국인_매수_5일합'] = trading_value['외국인합계'].rolling(window=5).sum()
-    trading_value['기관_매수_5일합'] = trading_value['기관합계'].rolling(window=5).sum()
+    # 기관과 외국인의 순매수 금액 5일 합 계산
+    trading_value['외국인_순매수_5일합'] = trading_value['외국인합계'].rolling(window=5).sum()
+    trading_value['기관_순매수_5일합'] = trading_value['기관합계'].rolling(window=5).sum()
 
     # 억 원 단위로 변환 및 반올림 처리
-    trading_value['외국인_매수_5일합'] = trading_value['외국인_매수_5일합'].apply(convert_and_round)
-    trading_value['기관_매수_5일합'] = trading_value['기관_매수_5일합'].apply(convert_and_round)
+    trading_value['외국인_순매수_5일합'] = trading_value['외국인_순매수_5일합'].apply(convert_and_round)
+    trading_value['기관_순매수_5일합'] = trading_value['기관_순매수_5일합'].apply(convert_and_round)
 
     data = pd.DataFrame({
-        '외국인_매수_5일합': trading_value['외국인_매수_5일합'],
-        '기관_매수_5일합': trading_value['기관_매수_5일합']
+        '외국인_순매수_5일합': trading_value['외국인_순매수_5일합'],
+        '기관_순매수_5일합': trading_value['기관_순매수_5일합']
     })
     data = data.dropna()
 
@@ -48,14 +48,14 @@ def draw_chart(stock_code, stock_name):
     data = data.join(market_cap[['시가총액']], how='inner')
 
     # 수급 오실레이터 %를 시가총액으로 보정
-    data['수급오실레이터'] = (data['외국인_매수_5일합'] + data['기관_매수_5일합']) / (2 / 13)
+    data['수급오실레이터'] = (data['외국인_순매수_5일합'] + data['기관_순매수_5일합']) / (2 / 13)
 
     # 시가총액 오실레이터 계산
     data['시가총액 오실레이터'] = (market_cap['시가총액'] / 10000).round(2)  # 시가총액 오실레이터 계산
     data = data.dropna()
 
-    # 시기외 데이터 계산: 기관 및 외국인 매수 합을 시가총액으로 나눈 값
-    data['시기외'] = ((data['기관_매수_5일합'] + data['외국인_매수_5일합'])) / data['시가총액']
+    # 시기외 데이터 계산: 기관 및 외국인 순매수 합을 시가총액으로 나눈 값
+    data['시기외'] = ((data['기관_순매수_5일합'] + data['외국인_순매수_5일합'])) / data['시가총액']
     
     # 첫 번째 레코드는 시기외의 첫 번째 값으로 초기화
     if not data.empty:  # 데이터프레임이 비어 있지 않은 경우에만 진행
@@ -112,7 +112,7 @@ def draw_chart(stock_code, stock_name):
     ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     fig.autofmt_xdate()
 
-    plt.title(f'{stock_name} 시가총액 오실레이터과 수급 오실레이터(매수금액기준)', fontsize=24, pad=40)
+    plt.title(f'{stock_name} 시가총액 오실레이터과 수급 오실레이터(순매수금액기준)', fontsize=24, pad=40)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     # Save chart
@@ -143,7 +143,7 @@ def get_last_date(stock_code):
     else:
         end_date = now.strftime('%Y-%m-%d')
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
-    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='매수')
+    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='순매수')
     return trading_value.index[-1].strftime('%Y%m%d')
 
 def main():
