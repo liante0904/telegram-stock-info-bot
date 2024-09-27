@@ -17,18 +17,15 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 
+# 변환 및 반올림 함수
 def convert_and_round(value):
-    # 10억으로 나누기
-    converted_value = value / 1e9
-    # 소수점 셋째 자리에서 반올림
-    rounded_value = round(converted_value, 2)
-    return rounded_value
+    return round(value / 1e9, 3)  # 10억 단위로 변환 및 반올림
 
 def draw_chart(stock_code, stock_name):
     if not os.path.exists(CHART_DIR):
         os.makedirs(CHART_DIR)
     
-    now = '2024-06-14 13:56:06.991523'
+    now = datetime.now()
     now = datetime.strptime(now, '%Y-%m-%d %H:%M:%S.%f')
     end_date = now.strftime('%Y-%m-%d')
 
@@ -43,9 +40,6 @@ def draw_chart(stock_code, stock_name):
     # 억 원 단위로 변환 및 반올림 처리
     trading_value['외국인_매수_5일합'] = trading_value['외국인_매수_5일합'].apply(convert_and_round)
     trading_value['기관_매수_5일합'] = trading_value['기관_매수_5일합'].apply(convert_and_round)
-
-
-
 
     data = pd.DataFrame({
         '외국인_매수_5일합': trading_value['외국인_매수_5일합'],
@@ -90,28 +84,38 @@ def draw_chart(stock_code, stock_name):
             data.loc[data.index[i], '시그널'] = data.loc[data.index[i], 'macd'] * 0.2 + data.loc[data.index[i - 1], '시그널'] * (1 - 0.2)
 
         # 수급오실레이터 계산: macd와 시그널의 차이
-        data['수급오실레이터'] = data['macd'] - data['시그널']
+        data['수급오실레이터'] = ((data['macd'] - data['시그널']) * 100).round(3)
 
     print(data)
 
-    # CSV 파일로 저장
+    # CSV 파일로 저장 (시가총액 오실레이터와 수급 오실레이터만 저장)
     csv_filename = os.path.join(CHART_DIR, f'{stock_name}_{stock_code}_data.csv')
-    data.to_csv(csv_filename, encoding='utf-8-sig')  # utf-8-sig로 인코딩하여 저장
+    data[['시가총액 오실레이터', '수급오실레이터']].to_csv(csv_filename, encoding='utf-8-sig')  # utf-8-sig로 인코딩하여 저장
     print(f"Data saved as: {csv_filename}")
 
-    fig, ax1 = plt.subplots(figsize=(14, 7))
+    # 그래프 그리기
+    fig, ax1 = plt.subplots(figsize=(10, 8))  # 가로 10, 세로 8로 설정
     color = 'tab:blue'
     ax1.set_xlabel('날짜')
     ax1.set_ylabel('시가총액 (억원)', color=color)  # Y축 레이블 수정
     ax1.plot(data.index, data['시가총액 오실레이터'], label=f'{stock_name} 시가총액 오실레이터', color=color)
     ax1.tick_params(axis='y', labelcolor=color)
-    ax1.set_ylim([data['시가총액 오실레이터'].min() * 0.95, data['시가총액 오실레이터'].max() * 1.05])
+
+    # 시가총액 오실레이터의 첫 번째 값 기준으로 0% 위치 조정
+    baseline = data['시가총액 오실레이터'].iloc[0]
+    max_value = data['시가총액 오실레이터'].max()  # 최대값 추가
+    ax1.set_ylim([baseline * 0.95, max_value * 1.05])  # 최대값에 따라 y축 상한 조정
+    ax1.axhline(0, color='gray', linestyle='--')  # 기준선 추가
+
 
     ax2 = ax1.twinx()
     color = 'tab:red'
     ax2.set_ylabel('수급 오실레이터 (%)', color=color)
     ax2.plot(data.index, data['수급오실레이터'], label=f'{stock_name} 수급 오실레이터', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
+
+    # 수급 오실레이터의 첫 번째 값 기준으로 0% 위치 조정
+    osc_baseline = data['수급오실레이터'].iloc[0]
     osc_min = data['수급오실레이터'].min()
     osc_max = data['수급오실레이터'].max()
     osc_range = osc_max - osc_min
@@ -139,6 +143,7 @@ def draw_chart(stock_code, stock_name):
     plt.close(fig)
     print(f"Chart saved as: {chart_filename}")
     return chart_filename
+
 
 def open_image(image_path):
     if 'WSL' in os.uname().release:
