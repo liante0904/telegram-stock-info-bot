@@ -20,8 +20,10 @@ def draw_chart(stock_code, stock_name):
         os.makedirs(CHART_DIR)
     
     now = datetime.now()
-    end_date = now.strftime('%Y-%m-%d')
-
+    if now.hour < 18:
+        end_date = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+    else:
+        end_date = now.strftime('%Y-%m-%d')
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
     
     trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='순매수')
