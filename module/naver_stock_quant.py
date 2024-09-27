@@ -31,8 +31,9 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
     first_page_data = response.json()
     # nationCode 값을 0번째 인덱스에서 가져오기
     nation_code = first_page_data['dividends'][0]['stockExchangeType']['nationCode']
+    totalCount  = first_page_data.get('totalCount', 0)  # totalCount 추출, 없을 경우 기본값 0
     print(f"0번째 인덱스 종목의 Nation Code: {nation_code}")
-
+    print(f"전체 종목수 : {totalCount}")
     total_count = first_page_data.get('totalCount', 0)
     total_pages = (total_count // pageSize) + (1 if total_count % pageSize > 0 else 0)
 
@@ -81,7 +82,7 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
             break
 
     # 수집된 데이터가 requested_stock_count보다 많으면 잘라내기
-    return all_data[:requested_stock_count]
+    return all_data[:requested_stock_count], totalCount
 
 
 def save_stock_data_to_excel(data, file_name='dividend_stock_data.xlsx'):
@@ -141,7 +142,7 @@ def main():
     all_data = []
     # fetch_stock_yield_by_period('005930')
     # 수집된 데이터를 리스트에 추가
-    all_data = fetch_dividend_stock_list_API(requested_stock_count=101)
+    all_data, dividend_total_stock_count = fetch_dividend_stock_list_API(requested_stock_count=101)
     # 엑셀 파일로 저장
     save_stock_data_to_excel(all_data)
 
