@@ -20,10 +20,14 @@ jobs:
 
     - name: Install dependencies
       run: |
-        if [ ! -d "venv" ]; then
-          python -m venv venv  # venv가 없을 경우에만 생성
-        fi
-        source venv/bin/activate
+
+        # pyenv 가상환경 활성화
+        echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> $GITHUB_ENV
+        echo 'eval "$(pyenv init --path)"' >> $GITHUB_ENV
+        echo 'eval "$(pyenv init -)"' >> $GITHUB_ENV
+        echo 'eval "$(pyenv virtualenv-init -)"' >> $GITHUB_ENV
+        pyenv activate pyenv  # 사용할 가상환경 이름
+        
         pip install --upgrade pip
         pip install -r requirements.txt
 
@@ -39,7 +43,14 @@ jobs:
         ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
           cd /home/ubuntu/dev/telegram-stock-info-bot  # 실제 배포할 프로젝트 경로
           git pull origin master
-          source venv/bin/activate  # 가상 환경 활성화
+
+          # pyenv 가상환경 활성화
+          echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> $GITHUB_ENV
+          echo 'eval "$(pyenv init --path)"' >> $GITHUB_ENV
+          echo 'eval "$(pyenv init -)"' >> $GITHUB_ENV
+          echo 'eval "$(pyenv virtualenv-init -)"' >> $GITHUB_ENV
+          pyenv activate pyenv  # 사용할 가상환경 이름
+          
           pip install -r requirements.txt  # 종속성 설치
           sudo systemctl restart telegram-bot.service  # 서비스 재시작
         EOF
