@@ -2,7 +2,7 @@ import requests
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from module.cache_manager import CacheManager
+from models.cache_manager import CacheManager
 from module.naver_upjong_quant import fetch_stock_info_quant_API
 
 import openpyxl
