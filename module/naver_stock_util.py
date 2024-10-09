@@ -59,7 +59,7 @@ def check_market_status(nation_code):
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN', None  # 예외 처리 시 두 개의 값 반환
 
-def fetch_stock_yield_by_period(stock_code=None, date=None):
+def stock_fetch_yield_by_period(stock_code=None, date=None):
     # stock_code가 제공되지 않았을 때 에러 처리
     if not stock_code:
         print("Error: stock_code is required but was not provided.")
@@ -194,41 +194,6 @@ def search_stock_code(query):
     
     print(non_spec_items)
     return non_spec_items
-
-def search_stock_code_mobileAPI(query):
-    # 네이버 API를 통한 해외 주식 조회 로직
-    url = 'https://m.stock.naver.com/front-api/search/autoComplete'
-    params = {
-        'query': query,
-        'target': 'stock,index,marketindicator'
-    }
-
-    response = requests.get(url, params=params)
-    data = response.json()
-    print(data)
-
-
-    if data:  pass
-    else:
-        # 1-2. 빈 값을 리턴받으면 해외 주식으로 간주
-        print("해외 주식으로 간주하고 네이버 API로 검색합니다.")
-        
-        # 네이버 API를 통한 해외 주식 조회 로직
-        url = 'https://m.stock.naver.com/front-api/search/autoComplete'
-        params = {
-            'query': query,
-            'target': 'stock,index,marketindicator'
-        }
-
-        response = requests.get(url, params=params)
-        data = response.json()
-        print(data)
-        
-        # 데이터 항목이 1건이면 필터링 없이 바로 반환
-        if len(data['result']['items'])  > 0:
-            return data['result']['items']
-        else:
-            return []
 
 def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     """
