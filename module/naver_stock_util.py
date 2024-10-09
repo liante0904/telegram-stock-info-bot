@@ -59,7 +59,7 @@ def check_market_status(nation_code):
         print(f"Error fetching API data: {e}")
         return 'UNKNOWN', None  # 예외 처리 시 두 개의 값 반환
 
-def fetch_stock_yield_by_period(stock_code=None, date=None):
+def stock_fetch_yield_by_period(stock_code=None, date=None):
     # stock_code가 제공되지 않았을 때 에러 처리
     if not stock_code:
         print("Error: stock_code is required but was not provided.")
