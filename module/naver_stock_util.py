@@ -195,41 +195,6 @@ def search_stock_code(query):
     print(non_spec_items)
     return non_spec_items
 
-def search_stock_code_mobileAPI(query):
-    # 네이버 API를 통한 해외 주식 조회 로직
-    url = 'https://m.stock.naver.com/front-api/search/autoComplete'
-    params = {
-        'query': query,
-        'target': 'stock,index,marketindicator'
-    }
-
-    response = requests.get(url, params=params)
-    data = response.json()
-    print(data)
-
-
-    if data:  pass
-    else:
-        # 1-2. 빈 값을 리턴받으면 해외 주식으로 간주
-        print("해외 주식으로 간주하고 네이버 API로 검색합니다.")
-        
-        # 네이버 API를 통한 해외 주식 조회 로직
-        url = 'https://m.stock.naver.com/front-api/search/autoComplete'
-        params = {
-            'query': query,
-            'target': 'stock,index,marketindicator'
-        }
-
-        response = requests.get(url, params=params)
-        data = response.json()
-        print(data)
-        
-        # 데이터 항목이 1건이면 필터링 없이 바로 반환
-        if len(data['result']['items'])  > 0:
-            return data['result']['items']
-        else:
-            return []
-
 def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     """
     페이지 수를 계산하는 함수.
