@@ -9,7 +9,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.cache_manager import CacheManager
 
-from module.naver_stock_util import fetch_stock_yield_by_period, search_stock_code
+from module.naver_stock_util import stock_fetch_yield_by_period, search_stock_code
 from datetime import datetime
 from finvizfinance.quote import finvizfinance
 
@@ -116,7 +116,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     if 'domestic' in url:  # 국내 주식
         data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
         # 기간 수익률 데이터 처리 (국내 주식의 경우만)
-        yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+        yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code)
         for key, value in yield_data_dict.items():
             data[key] = value
     elif 'worldstock' in url:  # 해외 주식
@@ -552,7 +552,7 @@ def fetch_stock_info_quant(stock_code):
     # 기간 수익률
 
     # 문자열을 안전하게 딕셔너리로 변환
-    yield_data_dict = fetch_stock_yield_by_period(stock_code=stock_code)
+    yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code)
 
     # 각 키와 값을 data 딕셔너리에 추가
     for key, value in yield_data_dict.items():
