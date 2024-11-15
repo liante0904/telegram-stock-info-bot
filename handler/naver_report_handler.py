@@ -5,7 +5,7 @@ from module.naver_stock_report import search_stock_report_pc
 from module.naver_stock_util import search_stock_code
 from module.recent_searches import save_recent_searches
 
-async def process_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
+async def process_naver_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
     writeFromDate = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
     writeToDate = datetime.today().strftime('%Y-%m-%d')
@@ -26,7 +26,7 @@ async def process_report_request(update: Update, context: CallbackContext, user_
             await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
             return  # 검색 실패 시 "이전 검색" 버튼을 표시하지 않도록 종료
 
-    context.user_data['next_command'] = 'search_report'
+    context.user_data['next_command'] = 'search_naver_report'
 
 async def fetch_and_send_reports(update: Update, context: CallbackContext, user_id: str, message, stock_name: str, stock_code: str, writeFromDate: str, writeToDate: str) -> None:
     await message.reply_text(f"{stock_name}({stock_code}) 레포트를 검색 중...")
@@ -67,7 +67,7 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
         await message.reply_text(f"{stock_name}({stock_code})에 대한 레포트를 찾을 수 없습니다.")
 
 
-async def process_selected_stock_for_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
+async def process_selected_for_naver_finance_report(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
     context.user_data['writeFromDate'] = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
     context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
     await fetch_and_send_reports(update, context, str(update.callback_query.from_user.id), update.callback_query.message, stock_name, stock_code, context.user_data['writeFromDate'], context.user_data['writeToDate'])
@@ -76,10 +76,10 @@ async def process_selected_stock_for_report(update: Update, context: CallbackCon
     remaining_stocks = context.user_data.get('remaining_stocks', [])
     if remaining_stocks:
         context.user_data['stock_list'] = remaining_stocks
-        await process_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
+        await process_naver_report_request(update, context, str(update.callback_query.from_user.id), update.callback_query.message)
 
 async def previous_search(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
     await query.answer()
     user_id = str(query.from_user.id)
-    await process_report_request(update, context, user_id, query.message)
+    await process_naver_report_request(update, context, user_id, query.message)

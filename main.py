@@ -14,7 +14,7 @@ from module.recent_searches import load_recent_searches, show_recent_searches
 from module.naver_stock_quant import fetch_dividend_stock_list_API
 from module.excel_util import process_excel_file
 
-from handler.report_handler import process_report_request, previous_search, process_selected_stock_for_report
+from handler.naver_report_handler import process_naver_report_request, previous_search, process_selected_for_naver_finance_report
 from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
 from handler.quant_handler import process_selected_stock_for_quant
 from handler.upjong_handler import show_upjong_list
@@ -25,7 +25,8 @@ from datetime import datetime, timedelta
 COMMAND_LIST = [
     ("generate_chart", "수급오실레이터 차트"),
     ("recent", "최근 검색 종목"),
-    ("search_report", "레포트 검색기"),
+    ("search_report", "레포트 검색기(자체DB)"),
+    ("search_naver_report", "네이버 레포트 검색기"),
     ("upjong_quant", "네이버 업종퀀트"),
     ("dividend_quant", "국내배당퀀트"),
     ("stock_quant", "종목 퀀트"),
@@ -63,8 +64,13 @@ async def excel_quant(update: Update, context: CallbackContext) -> None:
 
 async def search_report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요.')
+    await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 키워드를 입력하세요. (자체DB에서 검색)')
     context.user_data['next_command'] = 'search_report'
+
+async def search_naver_report(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요. (네이버 금융 리서치에서 검색)')
+    context.user_data['next_command'] = 'search_naver_report'
 
 async def report_alert_keyword(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
@@ -134,7 +140,7 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
 
     Processes the following commands based on user input:
         - 'generate_chart': Calls `process_selected_stock_for_chart` to generate a chart for the selected stock.
-        - 'search_report': Calls `process_selected_stock_for_report` to generate a report for the selected stock.
+        - 'search_naver_report': Calls `process_selected_for_naver_finance_report` to generate a `Naver finance report` for the selected stock.
         - 'stock_quant': Calls `process_selected_stock_for_quant` to provide stock quant analysis for the selected stock.
     """
     query = update.callback_query
@@ -148,8 +154,8 @@ async def route_command_based_on_user_input(update: Update, context: CallbackCon
             stock_name, stock_code, url = result['name'], result['code'], result['url']
             if next_command == 'generate_chart':
                 await process_selected_stock_for_chart(update, context, stock_name, stock_code)
-            elif next_command == 'search_report':
-                await process_selected_stock_for_report(update, context, stock_name, stock_code)
+            elif next_command == 'search_naver_report':
+                await process_selected_for_naver_finance_report(update, context, stock_name, stock_code)
             elif next_command == 'stock_quant':
                 await process_selected_stock_for_quant(update, context, stock_name, stock_code, url)
 
@@ -226,12 +232,14 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             await process_generate_chart_stock_list(update, context, user_id, update.message)
 
         elif next_command == 'search_report':
+            print(f"사용자의 레포트 검색어 {user_input}")
+        elif next_command == 'search_naver_report':
             # 보고서 검색 처리
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
             context.user_data['stock_list'] = stock_list
             context.user_data['writeFromDate'] = (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d')
             context.user_data['writeToDate'] = datetime.today().strftime('%Y-%m-%d')
-            await process_report_request(update, context, user_id, update.message)
+            await process_naver_report_request(update, context, user_id, update.message)
             
         elif next_command == 'stock_quant':
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
@@ -506,7 +514,9 @@ def main():
 
     application.add_handler(CommandHandler("generate_chart", generate_chart))  # /generate_chart 명령어 추가
     application.add_handler(CommandHandler("recent", show_recent_searches))  # 최근 검색 종목 명령어 추가
-    application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가
+    
+    application.add_handler(CommandHandler("search_report", search_report))  # 레포트 검색기 명령어 추가 (자체DB)
+    application.add_handler(CommandHandler("search_naver_report", search_naver_report))  # 네이버 레포트 검색기 명령어 추가
     application.add_handler(CommandHandler("upjong_quant", show_upjong_list))  # 업종 목록 표시
     application.add_handler(CommandHandler("dividend_quant", send_dividend_total_stock_count))  
     application.add_handler(CommandHandler("stock_quant", stock_quant))  

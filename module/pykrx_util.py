@@ -19,3 +19,9 @@ def get_all_tickers_and_names():
         "KOSPI": kospi_tickers,
         "KOSDAQ": kosdaq_tickers
     }
+
+def main():
+    r = get_all_tickers_and_names()
+    print(r)
+if __name__ == '__main__':
+    main()
