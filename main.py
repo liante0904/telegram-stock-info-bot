@@ -14,6 +14,8 @@ from module.recent_searches import load_recent_searches, show_recent_searches
 from module.naver_stock_quant import fetch_dividend_stock_list_API
 from module.excel_util import process_excel_file
 
+
+from handler.report_handler import process_request_report
 from handler.naver_report_handler import process_naver_report_request, previous_search, process_selected_for_naver_finance_report
 from handler.chart_handler import process_selected_stock_for_chart, process_generate_chart_stock_list
 from handler.quant_handler import process_selected_stock_for_quant
@@ -233,6 +235,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
         elif next_command == 'search_report':
             print(f"사용자의 레포트 검색어 {user_input}")
+            await process_request_report(update, context, user_id, update.message)
         elif next_command == 'search_naver_report':
             # 보고서 검색 처리
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
