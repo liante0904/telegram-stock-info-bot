@@ -1,4 +1,78 @@
-async def convert_sql_to_telegram_messages(fetched_rows):
+import os
+import sys
+from dotenv import load_dotenv
+from datetime import datetime
+# 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가(package 폴더에 있으므로)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from models.SQLiteManager import SQLiteManager
+
+class ReportDAO:
+    def __init__(self):
+        """Initialize the ReportDAO with a SQLiteManager instance."""
+        self.db = SQLiteManager()
+
+    def search_reports(self, keyword):
+        """
+        Search reports by a keyword in FIRM_NM, ARTICLE_TITLE, or WRITER columns.
+        Results are sorted by REG_DT in ascending order.
+        """
+        query = """
+        SELECT * 
+        FROM data_main_daily_send
+        WHERE FIRM_NM LIKE ? OR ARTICLE_TITLE LIKE ? OR WRITER LIKE ?
+        ORDER BY REG_DT ASC
+        """
+        # Use wildcard search with %
+        keyword_with_wildcard = f"%{keyword}%"
+        return self.db.execute_query(query, (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard))  
+
+    def get_all_reports(self, limit=None):
+        """
+        Retrieve all rows from the data_main_daily_send table.
+        Optionally limit the number of rows returned.
+        """
+        query = "SELECT * FROM data_main_daily_send"
+        if limit:
+            query += " LIMIT ?"
+            return self.db.execute_query(query, (limit,))
+        return self.db.execute_query(query)
+
+    def get_report_by_id(self, report_id):
+        """
+        Retrieve a specific report by its ID.
+        """
+        query = "SELECT * FROM data_main_daily_send WHERE id = ?"
+        return self.db.execute_query(query, (report_id,))
+
+    def add_report(self, sec_firm_order, article_board_order, firm_nm, attach_url, article_title, article_url, send_user, main_ch_send_yn, download_status_yn, download_url, save_time, reg_dt, writer, key, telegram_url):
+        """
+        Insert a new report into the data_main_daily_send table.
+        """
+        query = """
+        INSERT INTO data_main_daily_send (
+            SEC_FIRM_ORDER, ARTICLE_BOARD_ORDER, FIRM_NM, ATTACH_URL, ARTICLE_TITLE, ARTICLE_URL, 
+            SEND_USER, MAIN_CH_SEND_YN, DOWNLOAD_STATUS_YN, DOWNLOAD_URL, SAVE_TIME, REG_DT, WRITER, KEY, TELEGRAM_URL
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        return self.db.execute_query(query, (sec_firm_order, article_board_order, firm_nm, attach_url, article_title, article_url, send_user, main_ch_send_yn, download_status_yn, download_url, save_time, reg_dt, writer, key, telegram_url))
+
+    def delete_report_by_id(self, report_id):
+        """
+        Delete a specific report by its ID.
+        """
+        query = "DELETE FROM data_main_daily_send WHERE id = ?"
+        return self.db.execute_query(query, (report_id,))
+
+    def update_report_status(self, report_id, download_status_yn):
+        """
+        Update the download status of a specific report by its ID.
+        """
+        query = "UPDATE data_main_daily_send SET DOWNLOAD_STATUS_YN = ? WHERE id = ?"
+        return self.db.execute_query(query, (download_status_yn, report_id))
+
+
+def convert_sql_to_telegram_messages(fetched_rows):
     """
     Converts fetched SQL rows into formatted Telegram messages.
     
@@ -109,3 +183,24 @@ async def convert_sql_to_telegram_messages(fetched_rows):
         formatted_messages.append(message_chunk.strip())
 
     return formatted_messages
+
+
+def main():
+    # DAO 인스턴스 생성
+    report_dao = ReportDAO()
+
+    # 검색 키워드
+    search_keyword = "삼성전자"
+
+    # 검색 수행
+    search_results = report_dao.search_reports(search_keyword)
+
+    # 결과 출력
+    print("Search Results:")
+    print(convert_sql_to_telegram_messages(search_results))
+    # for report in search_results:
+    #     print(report)
+        
+
+if __name__ == '__main__':
+    main()

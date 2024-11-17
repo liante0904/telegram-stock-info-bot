@@ -9,8 +9,10 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
     stock_list = context.user_data.get('stock_list', [])
     writeFromDate = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
     writeToDate = datetime.today().strftime('%Y-%m-%d')
+    user_input = f"{message.text}"
+    send_text = f"사용자의 검색어 [{user_input}]"
     
-    await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요. (네이버 금융 리서치에서 검색)')
+    await context.bot.send_message(chat_id=chat_id, text=send_text)
     for stock_name in stock_list:
         results = search_stock_code(stock_name)
         if results and len(results) == 1:
