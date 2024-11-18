@@ -14,20 +14,22 @@ class ReportDAO:
         """Initialize the ReportDAO with a SQLiteManager instance."""
         self.db = SQLiteManager()
 
-    def SelSearchReports(self, keyword):
+    def SelSearchReports(self, keyword, limit=30, offset=0):
         """
-        Search reports by a keyword in FIRM_NM, ARTICLE_TITLE, or WRITER columns.
-        Results are sorted by REG_DT in ascending order.
+        Search reports by a keyword with pagination.
         """
         query = """
         SELECT * 
         FROM data_main_daily_send
         WHERE FIRM_NM LIKE ? OR ARTICLE_TITLE LIKE ? OR WRITER LIKE ?
-        ORDER BY REG_DT ASC
+        ORDER BY REG_DT DESC
+        LIMIT ? OFFSET ?
         """
-        # Use wildcard search with %
         keyword_with_wildcard = f"%{keyword}%"
-        return self.db.execute_query(query, (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard))
+        return self.db.execute_query(
+            query, 
+            (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard, limit, offset)
+        )
 
     def SelSearchReportsCount(self, keyword):
         """
