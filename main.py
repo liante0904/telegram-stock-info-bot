@@ -236,6 +236,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         elif next_command == 'search_report':
             print(f"사용자의 레포트 검색어 {user_input}")
             await process_request_report(update, context, user_id, update.message)
+            
         elif next_command == 'search_naver_report':
             # 보고서 검색 처리
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]

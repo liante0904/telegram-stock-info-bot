@@ -1,33 +1,45 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
+import os
+import sys
+import json
+from dotenv import load_dotenv
+from datetime import datetime
+# 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가(package 폴더에 있으므로)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.naver_stock_report import search_stock_report_pc
 from module.naver_stock_util import search_stock_code
 from module.recent_searches import save_recent_searches
+from db.report_dao import ReportDAO
 
 async def process_request_report(update: Update, context: CallbackContext, chat_id: str, message) -> None:
     stock_list = context.user_data.get('stock_list', [])
     writeFromDate = context.user_data.get('writeFromDate', (datetime.today() - timedelta(days=14)).strftime('%Y-%m-%d'))
     writeToDate = datetime.today().strftime('%Y-%m-%d')
     user_input = f"{message.text}"
-    send_text = f"사용자의 검색어 [{user_input}]"
+    db = ReportDAO()
+    r = db.SelSearchReports(user_input)
+    
+    send_text = f"사용자의 검색어 [{user_input}]는 {len(r)}건 \n"
+    send_text += f""
     
     await context.bot.send_message(chat_id=chat_id, text=send_text)
-    for stock_name in stock_list:
-        results = search_stock_code(stock_name)
-        if results and len(results) == 1:
-            stock_name, stock_code = results[0]['name'], results[0]['code']
-            await fetch_and_send_reports(update, context, chat_id, message, stock_name, stock_code, writeFromDate, writeToDate)
-        elif results and len(results) > 1:
-            buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
-            reply_markup = InlineKeyboardMarkup(buttons)
-            await message.reply_text("검색 결과를 선택하세요:", reply_markup=reply_markup)
-            context.user_data['search_results'] = results
-            context.user_data['remaining_stocks'] = stock_list[stock_list.index(stock_name) + 1:]
-            return
-        else:
-            await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
-            return  # 검색 실패 시 "이전 검색" 버튼을 표시하지 않도록 종료
+    # for stock_name in stock_list:
+    #     results = search_stock_code(stock_name)
+    #     if results and len(results) == 1:
+    #         stock_name, stock_code = results[0]['name'], results[0]['code']
+    #         await fetch_and_send_reports(update, context, chat_id, message, stock_name, stock_code, writeFromDate, writeToDate)
+    #     elif results and len(results) > 1:
+    #         buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
+    #         reply_markup = InlineKeyboardMarkup(buttons)
+    #         await message.reply_text("검색 결과를 선택하세요:", reply_markup=reply_markup)
+    #         context.user_data['search_results'] = results
+    #         context.user_data['remaining_stocks'] = stock_list[stock_list.index(stock_name) + 1:]
+    #         return
+    #     else:
+    #         await message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
+    #         return  # 검색 실패 시 "이전 검색" 버튼을 표시하지 않도록 종료
 
     context.user_data['next_command'] = 'search_report'
 
