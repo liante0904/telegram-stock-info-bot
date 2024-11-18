@@ -1,31 +1,51 @@
 import os
 import sys
+import json
 from dotenv import load_dotenv
 from datetime import datetime
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가(package 폴더에 있으므로)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.SQLiteManager import SQLiteManager
+from module.sqlite_util import convert_query_results_to_json
 
 class ReportDAO:
     def __init__(self):
         """Initialize the ReportDAO with a SQLiteManager instance."""
         self.db = SQLiteManager()
 
-    def search_reports(self, keyword):
+    def SelSearchReports(self, keyword, limit=30, offset=0):
         """
-        Search reports by a keyword in FIRM_NM, ARTICLE_TITLE, or WRITER columns.
-        Results are sorted by REG_DT in ascending order.
+        Search reports by a keyword with pagination.
         """
         query = """
-        SELECT * 
+        SELECT 
+        id, SEC_FIRM_ORDER, ARTICLE_BOARD_ORDER, FIRM_NM, ATTACH_URL, ARTICLE_TITLE, ARTICLE_URL, SEND_USER, MAIN_CH_SEND_YN, DOWNLOAD_STATUS_YN, DOWNLOAD_URL, SAVE_TIME, REG_DT, WRITER, KEY, TELEGRAM_URL
         FROM data_main_daily_send
         WHERE FIRM_NM LIKE ? OR ARTICLE_TITLE LIKE ? OR WRITER LIKE ?
-        ORDER BY REG_DT ASC
+        ORDER BY REG_DT DESC
+        LIMIT ? OFFSET ?
+        """
+        keyword_with_wildcard = f"%{keyword}%"
+        return self.db.execute_query(
+            query, 
+            (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard, limit, offset)
+        )
+
+    def SelSearchReportsCount(self, keyword):
+        """
+        Count the number of reports matching the keyword in FIRM_NM, ARTICLE_TITLE, or WRITER columns.
+        """
+        query = """
+        SELECT COUNT(*) AS count
+        FROM data_main_daily_send
+        WHERE FIRM_NM LIKE ? OR ARTICLE_TITLE LIKE ? OR WRITER LIKE ?
         """
         # Use wildcard search with %
         keyword_with_wildcard = f"%{keyword}%"
-        return self.db.execute_query(query, (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard))  
+        result = self.db.execute_query(query, (keyword_with_wildcard, keyword_with_wildcard, keyword_with_wildcard))
+        # Return the count value
+        return result[0]['count'] if result else 0
 
     def get_all_reports(self, limit=None):
         """
@@ -193,11 +213,13 @@ def main():
     search_keyword = "삼성전자"
 
     # 검색 수행
-    search_results = report_dao.search_reports(search_keyword)
+    search_results = report_dao.SelSearchReports(search_keyword)
 
     # 결과 출력
-    print("Search Results:")
-    print(convert_sql_to_telegram_messages(search_results))
+    print("Search Results:", len(search_results))
+    # print(convert_sql_to_telegram_messages(search_results))
+    r = convert_query_results_to_json(search_results)
+    print(r)
     # for report in search_results:
     #     print(report)
         
