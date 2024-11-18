@@ -45,15 +45,28 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
     send_text = search_summary  # Add search summary at the top
     for idx, result in enumerate(results, start=1 + offset):
         link = result.get('TELEGRAM_URL') or result.get('DOWNLOAD_URL') or result.get('ATTACH_URL', '링크 없음')
-        send_text += (
-            f"*제목*: *{result['ARTICLE_TITLE']}*\n"
-            f"증권사: {result['FIRM_NM']}\n"
-            f"발간일: {result['REG_DT']}\n"
-            f"[링크]({link})\n\n"
-        )
+
+        # LS증권의 경우 링크 두 개 표시
+        if result['FIRM_NM'] == 'LS증권':
+            key_link = result['KEY']
+            send_text += (
+                f"*제목*: *{result['ARTICLE_TITLE']}*\n"
+                f"증권사: {result['FIRM_NM']}\n"
+                f"발간일: {result['REG_DT']}\n"
+                f"[링크]({link}) | [게시글링크]({key_link})\n\n"
+            )
+        else:
+            # 일반적인 경우
+            send_text += (
+                f"*제목*: *{result['ARTICLE_TITLE']}*\n"
+                f"증권사: {result['FIRM_NM']}\n"
+                f"발간일: {result['REG_DT']}\n"
+                f"[링크]({link})\n\n"
+            )
 
     # Append the search summary at the bottom
     send_text += search_summary
+
     # Generate pagination buttons
     buttons = [
         [InlineKeyboardButton("다른 키워드 검색", callback_data="search_new_keyword")],  # Always visible
@@ -75,7 +88,6 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
     )
     context.user_data['last_keyword'] = user_input
     context.user_data['offset'] = offset
-
 
 async def fetch_and_send_reports(update: Update, context: CallbackContext, user_id: str, message, stock_name: str, stock_code: str, writeFromDate: str, writeToDate: str) -> None:
     await message.reply_text(f"{stock_name}({stock_code}) 키워드 레포트를 검색 중...")
