@@ -236,6 +236,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         elif next_command == 'search_report':
             print(f"사용자의 레포트 검색어 {user_input}")
             await process_request_report(update, context, user_id, update.message)
+            
         elif next_command == 'search_naver_report':
             # 보고서 검색 처리
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
@@ -379,7 +380,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"처리 중 오류가 발생했습니다: {e}")
     finally:
-        await show_commands(update, context)
+        pass
+        # if "search_report" not in next_command:
+        #     await show_commands(update, context)
 
 # 파일 수신 및 시트별 데이터 출력
 async def handle_document(update: Update, context: CallbackContext) -> None:
@@ -501,6 +504,32 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
 
+async def handle_pagination_callback(update: Update, context: CallbackContext) -> None:
+    """
+    Handle pagination button clicks.
+    """
+    query = update.callback_query
+    query_data = query.data.split(":")
+    keyword = query_data[1]
+    offset = int(query_data[2])
+
+    # Save the new offset
+    context.user_data['offset'] = offset
+    context.user_data['last_keyword'] = keyword
+
+    # Re-run the search function with updated offset
+    chat_id = query.message.chat_id
+    await process_request_report(update, context, chat_id)
+
+async def handle_search_new_keyword(update: Update, context: CallbackContext):
+    """
+    Handle the "다른 키워드 검색" button click.
+    """
+    query = update.callback_query
+    await query.answer()  # Acknowledge the callback
+    await query.message.reply_text("새로운 키워드를 입력하세요: /search_report")
+
+
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -533,6 +562,12 @@ def main():
     # Add message handlers
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # 검색 및 페이징 콜백 핸들러 추가
+    application.add_handler(CallbackQueryHandler(handle_pagination_callback, pattern=r"^search:"))
+    # Register the handler
+    # application.add_handler(CallbackQueryHandler(handle_search_new_keyword, pattern="^search_new_keyword$"))
+    application.add_handler(CallbackQueryHandler(show_commands, pattern="^search_new_keyword$"))
 
     # asyncio 이벤트 루프에서 명령어 설정
     loop = asyncio.get_event_loop()
