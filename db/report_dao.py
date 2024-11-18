@@ -19,7 +19,8 @@ class ReportDAO:
         Search reports by a keyword with pagination.
         """
         query = """
-        SELECT * 
+        SELECT 
+        id, SEC_FIRM_ORDER, ARTICLE_BOARD_ORDER, FIRM_NM, ATTACH_URL, ARTICLE_TITLE, ARTICLE_URL, SEND_USER, MAIN_CH_SEND_YN, DOWNLOAD_STATUS_YN, DOWNLOAD_URL, SAVE_TIME, REG_DT, WRITER, KEY, TELEGRAM_URL
         FROM data_main_daily_send
         WHERE FIRM_NM LIKE ? OR ARTICLE_TITLE LIKE ? OR WRITER LIKE ?
         ORDER BY REG_DT DESC

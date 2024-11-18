@@ -54,7 +54,6 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
 
     # Append the search summary at the bottom
     send_text += search_summary
-
     # Generate pagination buttons
     buttons = [
         [InlineKeyboardButton("다른 키워드 검색", callback_data="search_new_keyword")],  # Always visible
