@@ -439,19 +439,22 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
 
                         if naver_url:
                             stock_code = naver_url.replace('https://finance.naver.com/item/main.naver?code=', '')
-
-                        # 퀀트 데이터 가져오기
-                        if stock_code:
-                            results = search_stock_code(stock_code)
-                            stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
-                            quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
-                        elif stock_name:
-                            results = search_stock_code(stock_name)
-                            stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
-                            quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
-                        else:
-                            quant_data = None
-
+                        try:
+                            # 퀀트 데이터 가져오기
+                            if stock_code:
+                                results = search_stock_code(stock_code)
+                                stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                                quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
+                            elif stock_name:
+                                results = search_stock_code(stock_name)
+                                stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                                quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
+                            else:
+                                quant_data = None
+                        except Exception as e:
+                            await context.bot.send_message(chat_id=chat_id, text=f"[{sheet_name}]시트의 [{stock_name}] 종목 처리 오류 데이터 갱신 실패. \n 오류 로그 : {e}")
+                            continue  # 에러가 발생한 경우 다음 항목으로 넘어감
+                        
                         # 각 종목 갱신 메시지 업데이트
                         if quant_data:
                             for key, value in quant_data.items():
@@ -501,6 +504,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(chat_id=chat_id, text=f"{stock_name}\n처리 중 오류가 발생했습니다: {e}")
 
         context.user_data['next_command'] = None
+        
     else:
         await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
 
