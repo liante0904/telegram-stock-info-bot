@@ -2,7 +2,7 @@ import os
 from telegram.ext import CallbackContext
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from module.chart import draw_chart
-from module.recent_searches import save_recent_searches
+from module.recent_search_util import save_recent_searches
 from module.naver_stock_util import search_stock_code
 
 async def process_selected_stock_for_chart(update: Update, context: CallbackContext, stock_name: str, stock_code: str):
