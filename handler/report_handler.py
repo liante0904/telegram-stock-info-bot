@@ -50,17 +50,15 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
         if result['FIRM_NM'] == 'LS증권':
             key_link = result['KEY']
             send_text += (
-                f"*제목*: *{result['ARTICLE_TITLE']}*\n"
-                f"증권사: {result['FIRM_NM']}\n"
-                f"발간일: {result['REG_DT']}\n"
+                f"*{result['ARTICLE_TITLE'].strip()}*\n"
+                f"{result['FIRM_NM'].strip()} / {result['REG_DT'].strip()} / "
                 f"[링크]({link}) | [게시글링크]({key_link})\n\n"
             )
         else:
             # 일반적인 경우
             send_text += (
-                f"*제목*: *{result['ARTICLE_TITLE']}*\n"
-                f"증권사: {result['FIRM_NM']}\n"
-                f"발간일: {result['REG_DT']}\n"
+                f"*{result['ARTICLE_TITLE'].strip()}*\n"
+                f"{result['FIRM_NM'].strip()} / {result['REG_DT'].strip()} / "
                 f"[링크]({link})\n\n"
             )
 
@@ -69,7 +67,11 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
 
     # Generate pagination buttons
     buttons = [
-        [InlineKeyboardButton("다른 키워드 검색", callback_data="search_new_keyword")],  # Always visible
+        # 한 줄에 두 개의 버튼: 메인 메뉴 이동과 다른 키워드 검색
+        [
+            InlineKeyboardButton("메인 메뉴 이동", callback_data="main_menu"), 
+            InlineKeyboardButton("다른 키워드 검색", callback_data="search_new_keyword")
+        ],
     ]
     if offset > 0:
         buttons.append([InlineKeyboardButton("⬅️ 이전 20건", callback_data=f"search:{user_input}:{offset-limit}")])
@@ -105,7 +107,7 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
         report_results.sort(key=lambda x: x['date'])
 
         report_messages = [
-            f"*제목*: *{result['title']}*\n"
+            f"제목 : *{result['title']}*\n"
             f"증권사: {result['broker']}\n"
             f"발간일: {result['date']}\n"
             f"[링크]({result['link']})"

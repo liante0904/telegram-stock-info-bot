@@ -67,6 +67,7 @@ async def excel_quant(update: Update, context: CallbackContext) -> None:
 async def search_report(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 키워드를 입력하세요. (자체DB에서 검색)')
+    context.user_data['offset'] = 0  # Offset 초기화
     context.user_data['next_command'] = 'search_report'
 
 async def search_naver_report(update: Update, context: CallbackContext) -> None:
@@ -525,15 +526,6 @@ async def handle_pagination_callback(update: Update, context: CallbackContext) -
     chat_id = query.message.chat_id
     await process_request_report(update, context, chat_id)
 
-async def handle_search_new_keyword(update: Update, context: CallbackContext):
-    """
-    Handle the "다른 키워드 검색" button click.
-    """
-    query = update.callback_query
-    await query.answer()  # Acknowledge the callback
-    await query.message.reply_text("새로운 키워드를 입력하세요: /search_report")
-
-
 def main():
     load_dotenv()  # .env 파일의 환경 변수를 로드합니다
     env = os.getenv('ENV')
@@ -570,8 +562,8 @@ def main():
     # 검색 및 페이징 콜백 핸들러 추가
     application.add_handler(CallbackQueryHandler(handle_pagination_callback, pattern=r"^search:"))
     # Register the handler
-    # application.add_handler(CallbackQueryHandler(handle_search_new_keyword, pattern="^search_new_keyword$"))
-    application.add_handler(CallbackQueryHandler(show_commands, pattern="^search_new_keyword$"))
+    application.add_handler(CallbackQueryHandler(show_commands, pattern="^main_menu$"))
+    application.add_handler(CallbackQueryHandler(search_report, pattern="^search_new_keyword$"))
 
     # asyncio 이벤트 루프에서 명령어 설정
     loop = asyncio.get_event_loop()
