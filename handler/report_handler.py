@@ -57,7 +57,7 @@ async def process_request_report(update: Update, context: CallbackContext, chat_
         else:
             # 일반적인 경우
             send_text += (
-                f"*{result['ARTICLE_TITLE']}*\n"
+                f"*{result['ARTICLE_TITLE'].strip()}*\n"
                 f"{result['FIRM_NM'].strip()} / {result['REG_DT'].strip()} / "
                 f"[링크]({link})\n\n"
             )
@@ -107,7 +107,7 @@ async def fetch_and_send_reports(update: Update, context: CallbackContext, user_
         report_results.sort(key=lambda x: x['date'])
 
         report_messages = [
-            f"*{result['title']}*\n"
+            f"제목 : *{result['title']}*\n"
             f"증권사: {result['broker']}\n"
             f"발간일: {result['date']}\n"
             f"[링크]({result['link']})"
