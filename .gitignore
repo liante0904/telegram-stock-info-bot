@@ -36,6 +36,7 @@ __pycache__/
 *.sublime-workspace
 secrets.json
 *.png
+*.jpg
 nohup.out
 recent_searches.json
 *:Zone.Identifier
