@@ -1,7 +1,10 @@
-import os
 from telegram.ext import CallbackContext
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from module.chart import draw_chart
+
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from module.oscillator_chart import draw_chart
 from module.recent_search_util import save_recent_searches
 from module.naver_stock_util import search_stock_code
 

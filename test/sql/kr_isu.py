@@ -6,7 +6,7 @@ import sys
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from module.pykrx_util import get_all_tickers_and_names
+from pykrx_util import get_all_tickers_and_names
 
 # 데이터베이스 파일 경로
 db_path = os.path.expanduser('~/sqlite3/telegram.db')
