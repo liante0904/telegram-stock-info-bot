@@ -98,7 +98,6 @@ async def report_alert_keyword(update: Update, context: CallbackContext) -> None
     # 다음 명령어 상태 설정
     context.user_data['next_command'] = 'report_alert_keyword'
 
-
 async def send_dividend_total_stock_count(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     try:
@@ -118,6 +117,7 @@ async def send_dividend_total_stock_count(update: Update, context: CallbackConte
         )
 
     context.user_data['next_command'] = 'dividend_quant'
+    
 # JSON 파일에서 사용자 알림 키워드를 불러오는 함수
 def load_alert_keywords():
     if os.path.exists(KEYWORD_FILE_PATH):
@@ -167,7 +167,7 @@ async def set_commands(bot):
     await bot.set_my_commands(commands)
 
 # show_commands 함수
-async def show_commands(update, context):
+async def show_commands(update: Update, context: CallbackContext) -> None:
     """사용자가 /help 명령어를 입력했을 때 명령어 목록을 보여줍니다."""
     commands_text = "사용 가능한 명령어 목록:\n"
     for command, description in COMMAND_LIST:
@@ -182,49 +182,175 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     next_command = context.user_data.get('next_command')
     print('next_command', next_command)
+    
+    async def make_upjong_quant_excel(update: Update, context: CallbackContext) -> None:
+        chat_id = update.effective_chat.id
+        링크 = context.user_data.get('링크')
+        업종명 = context.user_data.get('업종명')
+        
+        stock_info = fetch_stock_info_in_upjong(링크)
+        if stock_info:
+            all_quant_data = []
+            for 종목명, _, _, _, 종목링크 in stock_info:
+                stock_code = 종목링크.split('=')[-1]
+                results = search_stock_code(stock_code)
+                stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
+                if quant_data:
+                    all_quant_data.append(quant_data)
+                else: pass
+
+            # Ensure the folder exists
+            if not os.path.exists(EXCEL_FOLDER_PATH):
+                os.makedirs(EXCEL_FOLDER_PATH)
+            today_date = datetime.today().strftime('%y%m%d')
+            excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.xlsx')
+
+            # Create a DataFrame and save to Excel with the sheet name as 업종명
+            df = pd.DataFrame(all_quant_data)
+            with pd.ExcelWriter(excel_file_name, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name=업종명, index=False)
+
+            process_excel_file(excel_file_name)
+
+            print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
+
+            if os.path.exists(excel_file_name):
+                with open(excel_file_name, 'rb') as file:
+                    await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
+        
+        context.user_data['next_command'] = None
+            
+    async def update_alert_keywords(update: Update, context: CallbackContext) -> None:
+        chat_id = update.effective_chat.id
+        user_id = str(update.effective_user.id)
+        
+        # 키워드 알림 처리
+        keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
+        unique_keywords = set(keywords)
+        all_keywords = load_alert_keywords()
+
+        if user_id not in all_keywords:
+            all_keywords[user_id] = []
+
+        existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
+        new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
+        all_keywords[user_id].extend(new_keywords)
+        unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
+        all_keywords[user_id] = list(unique_user_keywords.values())
+
+        save_alert_keywords(all_keywords)
+
+        context.user_data['next_command'] = None
+        updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
+        updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
+        )
+        context.user_data['next_command'] = None
+    
+    async def detele_all_alert_keywords(update: Update, context: CallbackContext) -> None:
+        chat_id = update.effective_chat.id
+        user_id = str(update.effective_user.id)
+        all_keywords = load_alert_keywords()
+        
+        # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
+        if user_id in all_keywords:
+            all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
+            save_alert_keywords(all_keywords)
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text='모든 알림 키워드가 삭제되었습니다.'
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text='삭제할 키워드가 없습니다.'
+            )
+        context.user_data['next_command'] = None
+    
+    async def make_stock_quant_excel(update: Update, context: CallbackContext) -> None:    
+        stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
+        context.user_data['stock_list'] = stock_list
+
+        all_quant_data = []
+        print(stock_list)
+        # 종목 검색
+        for stock_name in stock_list:
+            results = search_stock_code(stock_name)
+            print(results)
+            if results and len(results) == 1:
+                stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
+                quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
+                print(quant_data)
+                if quant_data:
+                    all_quant_data.append(quant_data)
+            elif results and len(results) > 1:
+                # 사용자에게 종목 선택을 받지 않고 종목명이 일치하는 값으로 자동 치환처리
+                select_stock = None  # 초기 값으로 None 설정
+                for result in results:
+                    if result['name'] == stock_name:
+                        select_stock = {'name': result['name'], 'code': result['code'], 'url': result['url']}
+                        break  # 조건을 만족하는 첫 번째 항목을 찾으면 루프 중단
+
+                if select_stock:
+                    print('===>', select_stock)
+                else:
+                    await update.message.reply_text(f"{stock_name} 을 찾을 수 없습니다.")
+                    await update.message.reply_text(f"{results} \n 종목에서 ")
+                    await update.message.reply_text(f"{results[0]['name']}로 처리됩니다. ")
+                    
+                stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
+                await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
+                quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
+
+                if quant_data:
+                    all_quant_data.append(quant_data)
+                context.user_data['search_results'] = results
+            else:
+                await update.message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
+        
+        # Ensure the folder exists
+        if not os.path.exists(EXCEL_FOLDER_PATH):
+            os.makedirs(EXCEL_FOLDER_PATH)
+
+        if all_quant_data:
+            # Define the base file name and extension
+            today_date = datetime.today().strftime('%y%m%d')
+            base_file_name = f'stock_quant_{today_date}_{user_id}'
+            file_extension = '.xlsx'
+            counter = 0
+            excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+            # Check if the file already exists and increment the sequence number if necessary
+            while os.path.exists(excel_file_name):
+                counter += 1
+                excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
+
+            # Create a DataFrame and save to Excel
+            df = pd.DataFrame(all_quant_data)
+            df.to_excel(excel_file_name, index=False, engine='openpyxl')
+
+            # Send the file to the user
+            if os.path.exists(excel_file_name):
+                with open(excel_file_name, 'rb') as file:
+                    await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
+    
     try:
         if next_command == 'report_alert_keyword':
             if user_input.lower() == '키워드 삭제':
-                all_keywords = load_alert_keywords()
-                
-                # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
-                if user_id in all_keywords:
-                    all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
-                    save_alert_keywords(all_keywords)
-                    
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text='모든 알림 키워드가 삭제되었습니다.'
-                    )
-                else:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text='삭제할 키워드가 없습니다.'
-                    )
+                await detele_all_alert_keywords(update, context)
             else:
-                # 키워드 알림 처리
-                keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
-                unique_keywords = set(keywords)
-                all_keywords = load_alert_keywords()
-
-                if user_id not in all_keywords:
-                    all_keywords[user_id] = []
-
-                existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
-                new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
-                all_keywords[user_id].extend(new_keywords)
-                unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
-                all_keywords[user_id] = list(unique_user_keywords.values())
-
-                save_alert_keywords(all_keywords)
-
-                context.user_data['next_command'] = None
-                updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
-                updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
-                )
+                await update_alert_keywords(update, context)
 
         elif next_command == 'generate_chart':
             # 차트 생성 처리
@@ -246,76 +372,8 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             await process_naver_report_request(update, context, user_id, update.message)
             
         elif next_command == 'stock_quant':
-            stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
-            context.user_data['stock_list'] = stock_list
+            await make_stock_quant_excel(update, context)
 
-            all_quant_data = []
-            print(stock_list)
-            # 종목 검색
-            for stock_name in stock_list:
-                results = search_stock_code(stock_name)
-                print(results)
-                if results and len(results) == 1:
-                    stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
-                    await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
-                    print(quant_data)
-                    if quant_data:
-                        all_quant_data.append(quant_data)
-                elif results and len(results) > 1:
-                    # 사용자에게 종목 선택을 받지 않고 종목명이 일치하는 값으로 자동 치환처리
-                    select_stock = None  # 초기 값으로 None 설정
-                    for result in results:
-                        if result['name'] == stock_name:
-                            select_stock = {'name': result['name'], 'code': result['code'], 'url': result['url']}
-                            break  # 조건을 만족하는 첫 번째 항목을 찾으면 루프 중단
-
-                    if select_stock:
-                        print('===>', select_stock)
-                    else:
-                        await update.message.reply_text(f"{stock_name} 을 찾을 수 없습니다.")
-                        await update.message.reply_text(f"{results} \n 종목에서 ")
-                        await update.message.reply_text(f"{results[0]['name']}로 처리됩니다. ")
-                        
-                    stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
-                    await update.message.reply_text(f"{stock_name} 퀀트 파일 생성 중입니다.")
-                    quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
-
-                    print(quant_data)
-                    if quant_data:
-                        all_quant_data.append(quant_data)
-                    context.user_data['search_results'] = results
-                else:
-                    await update.message.reply_text(f"{stock_name} 검색 결과가 없습니다. 다시 시도하세요.")
-            
-            # Ensure the folder exists
-            if not os.path.exists(EXCEL_FOLDER_PATH):
-                os.makedirs(EXCEL_FOLDER_PATH)
-
-            if all_quant_data:
-                # Define the base file name and extension
-                today_date = datetime.today().strftime('%y%m%d')
-                base_file_name = f'stock_quant_{today_date}_{user_id}'
-                file_extension = '.xlsx'
-                counter = 0
-                excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
-
-                # Check if the file already exists and increment the sequence number if necessary
-                while os.path.exists(excel_file_name):
-                    counter += 1
-                    excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f"{base_file_name}_{counter}{file_extension}")
-
-                # Create a DataFrame and save to Excel
-                df = pd.DataFrame(all_quant_data)
-                df.to_excel(excel_file_name, index=False, engine='openpyxl')
-
-                # Send the file to the user
-                if os.path.exists(excel_file_name):
-                    with open(excel_file_name, 'rb') as file:
-                        await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
-                else:
-                    await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
-        
         elif next_command == 'upjong_quant':
             # 업종 검색 처리
             upjong_list = fetch_upjong_list_API('KOR')
@@ -329,42 +387,12 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 
             if 업종명 in upjong_map:
                 등락률, 링크 = upjong_map[업종명]
+                print(f"입력한 업종명: {업종명}\n등락률: {등락률}\n링크: {링크}")
                 await context.bot.send_message(chat_id=chat_id, text=f"입력한 업종명: {업종명}\n등락률: {등락률}")
-
-                stock_info = fetch_stock_info_in_upjong(링크)
-                if stock_info:
-                    all_quant_data = []
-                    for 종목명, _, _, _, 종목링크 in stock_info:
-                        stock_code = 종목링크.split('=')[-1]
-                        results = search_stock_code(stock_code)
-                        stock_code, stock_name, url, reutersCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode']
-                        quant_data = fetch_stock_info_quant_API(stock_code, stock_name, url, reutersCode)
-                        if quant_data:
-                            all_quant_data.append(quant_data)
-                        else: pass
-
-                    # Ensure the folder exists
-                    if not os.path.exists(EXCEL_FOLDER_PATH):
-                        os.makedirs(EXCEL_FOLDER_PATH)
-                    today_date = datetime.today().strftime('%y%m%d')
-                    excel_file_name = os.path.join(EXCEL_FOLDER_PATH, f'{업종명}_naver_quant_{today_date}.xlsx')
-
-                    # Create a DataFrame and save to Excel with the sheet name as 업종명
-                    df = pd.DataFrame(all_quant_data)
-                    with pd.ExcelWriter(excel_file_name, engine='openpyxl') as writer:
-                        df.to_excel(writer, sheet_name=업종명, index=False)
-
-                    process_excel_file(excel_file_name)
-
-                    print(f'퀀트 정보가 {excel_file_name} 파일에 저장되었습니다.')
-
-                    if os.path.exists(excel_file_name):
-                        with open(excel_file_name, 'rb') as file:
-                            await context.bot.send_document(chat_id=chat_id, document=InputFile(file, filename=os.path.basename(excel_file_name)))
-                    else:
-                        await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
-                else:
-                    await context.bot.send_message(chat_id=chat_id, text="종목 정보를 가져오는 데 문제가 발생했습니다.")
+                await context.bot.send_message(chat_id=chat_id, text=f"{업종명} 퀀트 엑셀 파일 생성 중...")
+                context.user_data['링크'] = 링크
+                context.user_data['업종명'] = 업종명
+                await make_upjong_quant_excel(update, context)
             else:
                 await context.bot.send_message(chat_id=chat_id, text="입력한 업종명이 올바르지 않습니다.")
         
@@ -388,10 +416,12 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
 async def handle_document(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     document = update.message.document
-    caption = update.message.caption
     next_command = context.user_data.get('next_command')
 
-    if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+    async def process_excel_quant(update: Update, context: CallbackContext) -> None:
+        chat_id = update.effective_chat.id
+        document = update.message.document
+        caption = update.message.caption
         # 폴더가 존재하지 않으면 생성
         if not os.path.exists(EXCEL_FOLDER_PATH):
             os.makedirs(EXCEL_FOLDER_PATH)
@@ -504,9 +534,12 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(chat_id=chat_id, text=f"{stock_name}\n처리 중 오류가 발생했습니다: {e}")
 
         context.user_data['next_command'] = None
-        
+
+    if next_command == 'excel_quant' and document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        await process_excel_quant(update, context)
     else:
-        await context.bot.send_message(chat_id=chat_id, text="올바른 엑셀 파일을 전송해 주세요.")
+        await context.bot.send_message(chat_id=chat_id, text="/excel_quant 명령어를 사용하여 엑셀 파일을 전송해주세요.")
+
 
 async def handle_pagination_callback(update: Update, context: CallbackContext) -> None:
     """
