@@ -60,7 +60,6 @@ def check_market_status(nation_code):
         return 'UNKNOWN', None  # 예외 처리 시 두 개의 값 반환
 
 def stock_fetch_yield_by_period(stock_code=None, date=None):
-    # stock_code가 제공되지 않았을 때 에러 처리
     if not stock_code:
         print("Error: stock_code is required but was not provided.")
         return {"error": "stock_code is required"}
@@ -77,57 +76,96 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
             print(f"Failed to fetch data: Status code {response.status_code}")
             return None
 
-    # 1년간 가격 데이터를 가져오기
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)  # 1년 전 날짜
+    start_date = end_date - timedelta(days=365)
     start_date_str = start_date.strftime('%Y%m%d')
     end_date_str = end_date.strftime('%Y%m%d')
 
     trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={start_date_str}0000&endDateTime={end_date_str}0000'
+    print(f"[DEBUG] Fetching data from {trend_url}")
     trend_data = fetch_data(trend_url)
 
     if not trend_data:
         return {}
     
-    # print(trend_data)
+    # 현재 데이터가 없는 경우 가장 최신 데이터로 대체
+    current_price = None
+    for item in reversed(trend_data):  # 최신 데이터부터 탐색
+        if 'closePrice' in item:
+            current_price = int(item['closePrice'])
+            break
 
-    # 현재 가격을 trend_data의 마지막 데이터에서 가져오기
-    current_price = int(trend_data[-1]['closePrice'])
+    if current_price is None:
+        print("[ERROR] No valid current price found in data.")
+        return {"error": "No valid current price found"}
 
     # 가격 데이터를 날짜별로 정리
     prices = {item['localDate']: int(item['closePrice']) for item in trend_data}
 
-    # 수익률 계산
     def calculate_return(past_price):
         if past_price is not None:
             percentage_change = round((current_price / past_price - 1) * 100, 2)
             return "{:.2f}".format(percentage_change)
         return "N/A"
 
-    # 1D, 1W, 1M, 3M, 6M, YTD, 1Y 수익률 계산
     timeframes = {
         '1D': 1,
         '1W': 7,
         '1M': 30,
         '3M': 90,
         '6M': 180,
-        'YTD': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+        'YTD': 0,  # YTD는 별도로 처리
         '1Y': 365
     }
 
     returns = {}
-    end_date = datetime.now()
-    
     for key, days in timeframes.items():
-        target_date = end_date - timedelta(days=days)
-        target_date_str = target_date.strftime('%Y%m%d')
         past_price = None
-        
-        for date_str in sorted(prices.keys(), reverse=True):
-            if date_str <= target_date_str:
-                past_price = prices.get(date_str)
-                break
-        
+
+        if key == 'YTD':
+            # 현재 연도 시작일 (1월 1일 기준)
+            current_year_start = datetime(end_date.year, 1, 1)
+            current_year_start_str = current_year_start.strftime('%Y%m%d')
+
+            # 현재 연도의 데이터가 없을 경우 이전 연도로 대체
+            if current_year_start_str not in prices:
+                last_year_end = max(
+                    date for date in prices.keys() if int(date[:4]) == end_date.year - 1
+                )  # 이전 연도 마지막 거래일
+                first_year_start = min(
+                    date for date in prices.keys() if int(date[:4]) == end_date.year - 1
+                )  # 이전 연도 첫 거래일
+
+                if last_year_end and first_year_start:
+                    last_price = prices[last_year_end]
+                    first_price = prices[first_year_start]
+                    past_price = first_price
+                    current_price = last_price
+            else:
+                # 현재 연도의 1월 1일 가격
+                for date_str in sorted(prices.keys(), reverse=True):
+                    if date_str <= current_year_start_str:
+                        past_price = prices[date_str]
+                        break
+        else:
+            # 일반적인 기간에 대한 과거 데이터 탐색
+            target_date = end_date - timedelta(days=days)
+            target_date_str = target_date.strftime('%Y%m%d')
+
+            for date_str in sorted(prices.keys(), reverse=True):
+                if date_str <= target_date_str:
+                    past_price = prices.get(date_str)
+                    break
+
+        # 과거 가격이 없는 경우 최근 데이터를 사용
+        if not past_price:
+            for offset in range(1, 8):  # 7일 이전까지 탐색
+                adjusted_date = end_date - timedelta(days=offset)
+                adjusted_date_str = adjusted_date.strftime('%Y%m%d')
+                if adjusted_date_str in prices:
+                    past_price = prices[adjusted_date_str]
+                    break
+
         returns[key] = calculate_return(past_price)
 
     return returns
@@ -210,6 +248,9 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     return math.ceil(requested_count / page_size)
 
 def main():
+    r = stock_fetch_yield_by_period('005935')
+    print(r)
+    
     # r = search_stock_code_mobileAPI('이토추')
     # r = search_stock_code('이토추')
     # r = fetch_stock_yield_by_period(stock_code='188260')
