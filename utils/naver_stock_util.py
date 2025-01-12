@@ -76,8 +76,9 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
             print(f"Failed to fetch data: Status code {response.status_code}")
             return None
 
+    # 조회 기간을 380일로 설정 (1년 데이터 확보 보장)
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
+    start_date = end_date - timedelta(days=380)
     start_date_str = start_date.strftime('%Y%m%d')
     end_date_str = end_date.strftime('%Y%m%d')
 
@@ -139,6 +140,24 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
                     if date_str < current_year_start_str:
                         past_price = prices[date_str]
                         break
+
+        elif key == '1Y':
+            # 1년 전 날짜의 데이터 확보 (1년 이상 넉넉한 범위 탐색)
+            target_date = end_date - timedelta(days=days)
+            target_date_str = target_date.strftime('%Y%m%d')
+
+            for date_str in sorted(prices.keys(), reverse=True):
+                if date_str <= target_date_str:
+                    past_price = prices.get(date_str)
+                    break
+
+            # 1Y 데이터가 없는 경우 더 과거 데이터를 사용
+            if not past_price:
+                for date_str in sorted(prices.keys(), reverse=True):
+                    if int(date_str) < int(target_date_str):
+                        past_price = prices[date_str]
+                        break
+
         else:
             # 일반적인 기간에 대한 과거 데이터 탐색
             target_date = end_date - timedelta(days=days)
