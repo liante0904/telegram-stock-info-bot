@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from module.naver_stock_util import search_stock_code
-from module.recent_search_util import load_recent_searches, show_recent_searches
+from utils.recent_search_util import load_recent_searches, show_recent_searches
 from module.naver_stock_quant import fetch_dividend_stock_list_API
 from utils.excel_util import process_excel_file
 
