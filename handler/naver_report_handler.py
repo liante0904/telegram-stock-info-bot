@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
 from module.naver_stock_report import search_stock_report_pc
-from module.naver_stock_util import search_stock_code
+from utils.naver_stock_util import search_stock_code
 from utils.recent_search_util import save_recent_searches
 
 async def process_naver_report_request(update: Update, context: CallbackContext, user_id: str, message) -> None:

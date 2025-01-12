@@ -2,6 +2,7 @@ import json
 from datetime import datetime, time, timedelta
 import pytz
 import os
+import sys
 
 class CacheManager:
     def __init__(self, cache_dir, cache_file_prefix):
@@ -36,7 +37,8 @@ class CacheManager:
         market_close_time = time(16, 40)
 
         # 장 상태와 마지막 거래일자 및 시간 정보를 확인합니다.
-        from module.naver_stock_util import check_market_status
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+        from utils.naver_stock_util import check_market_status
         market_status, last_traded_at = check_market_status(nation_code)
 
         print(f"[DEBUG] 조회 국가 코드 : {nation_code}")
@@ -152,3 +154,13 @@ class CacheManager:
 
         print("[DEBUG] 유효한 캐시가 아닙니다. 새 데이터를 호출합니다.")
         return False
+
+# 함수 사용 예
+if __name__ == "__main__":
+    # 캐시 디렉토리와 파일 접두어 설정
+    cache_manager = CacheManager("cache", "stock")
+    stock_code = "005930"
+    nationCode = "KOR"
+    # 캐시 유효성 검사
+    if cache_manager.is_cache_valid(stock_code, nationCode):
+        print("[DEBUG] 유효한 캐시를 발견했습니다.")
