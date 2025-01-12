@@ -4,7 +4,7 @@ from telegram import Update, InputFile
 from telegram.ext import CallbackContext
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.naver_stock_quant import fetch_dividend_stock_list_API, save_stock_data_to_excel
-from module.naver_stock_util import calculate_page_count
+from utils.naver_stock_util import calculate_page_count
 from utils.excel_util import process_excel_file
 from datetime import datetime
 

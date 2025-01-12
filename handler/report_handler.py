@@ -9,7 +9,7 @@ from datetime import datetime
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가(package 폴더에 있으므로)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.naver_stock_report import search_stock_report_pc
-from module.naver_stock_util import search_stock_code
+from utils.naver_stock_util import search_stock_code
 from utils.recent_search_util import save_recent_searches
 from db.report_dao import ReportDAO
 
