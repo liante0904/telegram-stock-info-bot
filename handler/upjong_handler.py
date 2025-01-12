@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from module.naver_upjong_quant import fetch_upjong_list_API
+from modules.naver_upjong_quant import fetch_upjong_list_API
 
 # 업종 목록을 보여주는 함수 (인덱스 포함)
 async def show_upjong_list(update: Update, context: CallbackContext) -> None:
