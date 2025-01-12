@@ -7,7 +7,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.SQLiteManager import SQLiteManager
-from module.sqlite_util import convert_query_results_to_json
+from utils.sqlite_util  import convert_query_results_to_json
 
 class ReportDAO:
     def __init__(self):
