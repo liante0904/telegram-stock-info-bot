@@ -10,7 +10,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from module.naver_stock_report import search_stock_report_pc
 from module.naver_stock_util import search_stock_code
-from module.recent_search_util import save_recent_searches
+from utils.recent_search_util import save_recent_searches
 from db.report_dao import ReportDAO
 
 async def process_request_report(update: Update, context: CallbackContext, chat_id: str, message=None) -> None:
