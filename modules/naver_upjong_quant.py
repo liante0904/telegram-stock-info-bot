@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
 from utils.naver_stock_util import stock_fetch_yield_by_period, search_stock_code
-from module.finviz_stock_quant import fetch_worldstock_info
+from modules.finviz_stock_quant import fetch_worldstock_info
 
 
 def fetch_upjong_list_API(nation_code):
