@@ -3,7 +3,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
-from module.naver_upjong_quant import fetch_stock_info_quant_API
+from modules.naver_upjong_quant import fetch_stock_info_quant_API
 
 import openpyxl
 from openpyxl.utils.dataframe import dataframe_to_rows

@@ -2,7 +2,7 @@ from telegram import Update, InputFile
 from telegram.ext import CallbackContext
 import os
 import pandas as pd
-from module.naver_upjong_quant import fetch_stock_info_quant_API
+from modules.naver_upjong_quant import fetch_stock_info_quant_API
 from datetime import datetime
 
 async def process_selected_stock_for_quant(update: Update, context: CallbackContext, stock_name: str, stock_code: str, url: str):

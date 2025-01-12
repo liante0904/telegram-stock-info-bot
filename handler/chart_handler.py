@@ -4,7 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from module.oscillator_chart import draw_chart
+from modules.oscillator_chart import draw_chart
 from utils.recent_search_util import save_recent_searches
 from utils.naver_stock_util import search_stock_code
 

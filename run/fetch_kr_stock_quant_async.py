@@ -4,7 +4,7 @@ import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from module.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
+from modules.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 
 # 동기 함수를 비동기적으로 호출하기 위한 래퍼 함수
 async def fetch_quant_data_async(stock_code):

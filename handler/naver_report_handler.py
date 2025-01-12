@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
-from module.naver_stock_report import search_stock_report_pc
+from modules.naver_stock_report import search_stock_report_pc
 from utils.naver_stock_util import search_stock_code
 from utils.recent_search_util import save_recent_searches
 
