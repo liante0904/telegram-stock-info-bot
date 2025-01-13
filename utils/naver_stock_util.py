@@ -76,8 +76,9 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
             print(f"Failed to fetch data: Status code {response.status_code}")
             return None
 
+    # 조회 기간을 380일로 설정 (1년 데이터 확보 보장)
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
+    start_date = end_date - timedelta(days=380)
     start_date_str = start_date.strftime('%Y%m%d')
     end_date_str = end_date.strftime('%Y%m%d')
 
@@ -127,26 +128,36 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
             current_year_start = datetime(end_date.year, 1, 1)
             current_year_start_str = current_year_start.strftime('%Y%m%d')
 
-            # 현재 연도의 데이터가 없을 경우 이전 연도로 대체
-            if current_year_start_str not in prices:
-                last_year_end = max(
-                    date for date in prices.keys() if int(date[:4]) == end_date.year - 1
-                )  # 이전 연도 마지막 거래일
-                first_year_start = min(
-                    date for date in prices.keys() if int(date[:4]) == end_date.year - 1
-                )  # 이전 연도 첫 거래일
+            # 현재 연도 1월의 가장 빠른 일자 데이터 찾기
+            for date_str in sorted(prices.keys()):
+                if date_str.startswith(str(end_date.year)) and int(date_str[4:6]) == 1:
+                    past_price = prices[date_str]
+                    break
 
-                if last_year_end and first_year_start:
-                    last_price = prices[last_year_end]
-                    first_price = prices[first_year_start]
-                    past_price = first_price
-                    current_price = last_price
-            else:
-                # 현재 연도의 1월 1일 가격
+            # 현재 연도 1월 데이터가 없는 경우 1월 1일 이전의 가장 가까운 데이터 사용
+            if not past_price:
                 for date_str in sorted(prices.keys(), reverse=True):
-                    if date_str <= current_year_start_str:
+                    if date_str < current_year_start_str:
                         past_price = prices[date_str]
                         break
+
+        elif key == '1Y':
+            # 1년 전 날짜의 데이터 확보 (1년 이상 넉넉한 범위 탐색)
+            target_date = end_date - timedelta(days=days)
+            target_date_str = target_date.strftime('%Y%m%d')
+
+            for date_str in sorted(prices.keys(), reverse=True):
+                if date_str <= target_date_str:
+                    past_price = prices.get(date_str)
+                    break
+
+            # 1Y 데이터가 없는 경우 더 과거 데이터를 사용
+            if not past_price:
+                for date_str in sorted(prices.keys(), reverse=True):
+                    if int(date_str) < int(target_date_str):
+                        past_price = prices[date_str]
+                        break
+
         else:
             # 일반적인 기간에 대한 과거 데이터 탐색
             target_date = end_date - timedelta(days=days)
@@ -248,7 +259,7 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     return math.ceil(requested_count / page_size)
 
 def main():
-    r = stock_fetch_yield_by_period('005935')
+    r = stock_fetch_yield_by_period('005930')
     print(r)
     
     # r = search_stock_code_mobileAPI('이토추')
