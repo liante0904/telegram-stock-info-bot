@@ -1,7 +1,9 @@
+import os
+import sys
 import requests
 import pandas as pd
 import math
-import os
+import subprocess
 import concurrent.futures
 from tqdm import tqdm
 from datetime import datetime
@@ -17,6 +19,11 @@ max_workers = 4
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
+
+def ensure_directory(path):
+    """폴더가 존재하지 않으면 생성"""
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 def fetch_all_stocks(base_url, market_name):
     params = {"page": 1, "pageSize": 100}
@@ -76,28 +83,49 @@ def add_quant_data(df, market_name):
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
+def send_to_telegram():
+    script_path = "/home/ubuntu/sh/sendDocument.sh"
+    result = subprocess.run(["/bin/bash", script_path], capture_output=True, text=True)
+    print("텔레그램 전송 스크립트 실행 결과:")
+    print(result.stdout)
+    print(result.stderr)
+
 def main():
-    # 코스피와 코스닥 데이터 가져오기
+    # 전송 여부 체크 전 텔레그램 전송(최초 실행시 이미 발송되지 않을 수 있음)
+    send_to_telegram()
+    
+    today_date = datetime.today().strftime('%y%m%d')
+    send_folder = "send"
+    ensure_directory(send_folder)
+    
+    file_name = f"KR_stock_screening_{today_date}.xlsx"
+    file_path = os.path.join(send_folder, file_name)
+    
+    if os.path.exists(file_path):
+        print(f"{file_name} 파일이 이미 존재합니다. 프로그램을 종료합니다.")
+        return
+    
     kospi_stocks, kospi_etf_etn = fetch_all_stocks(kospi_url, "KOSPI")
     kosdaq_stocks, kosdaq_etf_etn = fetch_all_stocks(kosdaq_url, "KOSDAQ")
-
+    
     df_kospi = pd.DataFrame(kospi_stocks)
     df_kosdaq = pd.DataFrame(kosdaq_stocks)
     df_etf_etn = pd.DataFrame(kospi_etf_etn + kosdaq_etf_etn)
-
+    
     df_kospi = add_quant_data(df_kospi, "KOSPI")
     df_kosdaq = add_quant_data(df_kosdaq, "KOSDAQ")
     df_etf_etn = add_quant_data(df_etf_etn, "ETF_ETN")
-
-    # 엑셀 파일로 저장
-    today_date = datetime.today().strftime('%y%m%d')
-    excel_file = f"KR_stock_screening_{today_date}.xlsx"
-    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+    
+    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
         df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)
         df_kosdaq.to_excel(writer, sheet_name="KOSDAQ", index=False)
         df_etf_etn.to_excel(writer, sheet_name="ETF_ETN", index=False)
-    print(f"\n데이터가 '{excel_file}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
     
+    print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
+    
+    send_to_telegram()
+    
+    print(f"{file_name} 파일을 send 폴더로 이동 완료.")
 
 if __name__ == '__main__':
     main()
