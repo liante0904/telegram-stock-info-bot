@@ -1,10 +1,10 @@
 import os
-import sys
 import requests
 import pandas as pd
 import math
-import subprocess
 import concurrent.futures
+from pathlib import Path
+from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
@@ -83,12 +83,54 @@ def add_quant_data(df, market_name):
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
+
 def send_to_telegram():
-    script_path = "/home/ubuntu/sh/sendDocument.sh"
-    result = subprocess.run(["/bin/bash", script_path], capture_output=True, text=True)
-    print("텔레그램 전송 스크립트 실행 결과:")
-    print(result.stdout)
-    print(result.stderr)
+    # .env 파일 로드
+    env_path = Path('/home/ubuntu/dev/telegram-stock-info-noti-bot/.env')
+    load_dotenv(dotenv_path=env_path)
+
+    # 폴더 경로 설정
+    FOLDER_PATH = "/home/ubuntu/dev/telegram-stock-info-bot"
+    SEND_FOLDER = os.path.join(FOLDER_PATH, "send")
+
+    # 최신 엑셀 파일 찾기 (KR_stock_screening_YYMMDD.xlsx 형식)
+    files = sorted(
+        [f for f in os.listdir(FOLDER_PATH) if f.startswith("KR_stock_screening_") and f.endswith(".xlsx")],
+        reverse=True
+    )
+    
+    if not files:
+        print(f"오류: 전송할 파일을 찾을 수 없습니다. ({FOLDER_PATH}/KR_stock_screening_*.xlsx)")
+        return
+
+    FILE_PATH = os.path.join(FOLDER_PATH, files[0])
+    FILE_NAME = os.path.basename(FILE_PATH)
+
+    # 메시지 설정
+    MESSAGE = f"📊 주식 스크리닝 결과 파일 전송: {FILE_NAME}"
+
+    # Telegram API 요청
+    url = f"TELEGRAM_SEND_DOCUMENT_URL"
+    data = {
+        'chat_id': os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM'),
+        'caption': MESSAGE
+    }
+    
+    with open(FILE_PATH, 'rb') as file:
+        files = {'document': file}
+        response = requests.post(url, data=data, files=files)
+    
+    # 응답 출력
+    print(f"Response: {response.text}")
+
+    # send 폴더가 없으면 생성
+    os.makedirs(SEND_FOLDER, exist_ok=True)
+
+    # 전송한 파일 이동
+    new_file_path = os.path.join(SEND_FOLDER, FILE_NAME)
+    os.rename(FILE_PATH, new_file_path)
+    
+    print(f"파일이 전송 후 이동되었습니다: {new_file_path}")
 
 def main():
     # 전송 여부 체크 전 텔레그램 전송(최초 실행시 이미 발송되지 않을 수 있음)
