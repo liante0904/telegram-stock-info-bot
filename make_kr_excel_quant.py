@@ -83,7 +83,6 @@ def add_quant_data(df, market_name):
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
-
 def send_to_telegram():
     # .env 파일 로드
     env_path = Path('/home/ubuntu/dev/telegram-stock-info-noti-bot/.env')
@@ -101,7 +100,7 @@ def send_to_telegram():
     
     if not files:
         print(f"오류: 전송할 파일을 찾을 수 없습니다. ({FOLDER_PATH}/KR_stock_screening_*.xlsx)")
-        return
+        return False
 
     FILE_PATH = os.path.join(FOLDER_PATH, files[0])
     FILE_NAME = os.path.basename(FILE_PATH)
@@ -131,11 +130,9 @@ def send_to_telegram():
     os.rename(FILE_PATH, new_file_path)
     
     print(f"파일이 전송 후 이동되었습니다: {new_file_path}")
+    return True
 
 def main():
-    # 전송 여부 체크 전 텔레그램 전송(최초 실행시 이미 발송되지 않을 수 있음)
-    send_to_telegram()
-    
     today_date = datetime.today().strftime('%y%m%d')
     send_folder = "send"
     ensure_directory(send_folder)
@@ -143,31 +140,40 @@ def main():
     file_name = f"KR_stock_screening_{today_date}.xlsx"
     file_path = os.path.join(send_folder, file_name)
     
+    # 1. send_folder에 해당일자 파일이 있는 경우 정상 종료
     if os.path.exists(file_path):
         print(f"{file_name} 파일이 이미 존재합니다. 프로그램을 종료합니다.")
         return
     
-    kospi_stocks, kospi_etf_etn = fetch_all_stocks(kospi_url, "KOSPI")
-    kosdaq_stocks, kosdaq_etf_etn = fetch_all_stocks(kosdaq_url, "KOSDAQ")
+    # 2. send_folder에 파일이 없고, send_to_telegram()로 보낼 파일이 없는 경우
+    if not send_to_telegram():  # 최초 전송 시도 후 파일이 없으면 데이터 생성
+        kospi_stocks, kospi_etf_etn = fetch_all_stocks(kospi_url, "KOSPI")
+        kosdaq_stocks, kosdaq_etf_etn = fetch_all_stocks(kosdaq_url, "KOSDAQ")
+        
+        df_kospi = pd.DataFrame(kospi_stocks)
+        df_kosdaq = pd.DataFrame(kosdaq_stocks)
+        df_etf_etn = pd.DataFrame(kospi_etf_etn + kosdaq_etf_etn)
+        
+        df_kospi = add_quant_data(df_kospi, "KOSPI")
+        df_kosdaq = add_quant_data(df_kosdaq, "KOSDAQ")
+        df_etf_etn = add_quant_data(df_etf_etn, "ETF_ETN")
+        
+        # send_folder가 아닌 기본 경로에 저장
+        base_path = "/home/ubuntu/dev/telegram-stock-info-bot"
+        file_path = os.path.join(base_path, file_name)
+        
+        with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
+            df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)
+            df_kosdaq.to_excel(writer, sheet_name="KOSDAQ", index=False)
+            df_etf_etn.to_excel(writer, sheet_name="ETF_ETN", index=False)
+        
+        print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
+        
+        # 생성된 파일을 Telegram으로 전송
+        send_to_telegram()
     
-    df_kospi = pd.DataFrame(kospi_stocks)
-    df_kosdaq = pd.DataFrame(kosdaq_stocks)
-    df_etf_etn = pd.DataFrame(kospi_etf_etn + kosdaq_etf_etn)
-    
-    df_kospi = add_quant_data(df_kospi, "KOSPI")
-    df_kosdaq = add_quant_data(df_kosdaq, "KOSDAQ")
-    df_etf_etn = add_quant_data(df_etf_etn, "ETF_ETN")
-    
-    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
-        df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)
-        df_kosdaq.to_excel(writer, sheet_name="KOSDAQ", index=False)
-        df_etf_etn.to_excel(writer, sheet_name="ETF_ETN", index=False)
-    
-    print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
-    
-    send_to_telegram()
-    
-    print(f"{file_name} 파일을 send 폴더로 이동 완료.")
+    else:
+        print("이미 처리된 파일이 Telegram으로 전송되었습니다.")
 
 if __name__ == '__main__':
     main()
