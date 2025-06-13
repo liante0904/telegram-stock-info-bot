@@ -1,3 +1,4 @@
+import random, time
 import os
 import requests
 import pandas as pd
@@ -71,6 +72,7 @@ def fetch_quant_data(stock_info):
     stock_code = stock_info["종목코드"]
     url = f"https://m.stock.naver.com/item/main.nhn#/stocks/{stock_code}/total"
     quant_data = fetch_stock_info_quant_API(stock_code, url)
+    time.sleep(random.uniform(1.0, 2.0))
     return quant_data if quant_data else {}
 
 def add_quant_data(df, market_name):
