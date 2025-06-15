@@ -54,6 +54,11 @@ def fetch_all_stocks(base_url, market_name):
             page_data = response.json()
             stocks = page_data.get("stocks", [])
             for stock in stocks:
+                stock_name = stock.get("stockName", "")
+                if ('호스팩' in stock_name) or (stock_name.endswith('스팩') and '호' in stock_name):
+                    print(f"스팩 종목으로 추정되는 '{stock_name}'을(를) 건너뜁니다.")
+                    continue
+
                 stock_info = {
                     "종목코드": stock.get("itemCode", ""),
                     "종목명": stock.get("stockName", ""),
@@ -92,6 +97,7 @@ def send_to_telegram():
 
     # 폴더 경로 설정
     FOLDER_PATH = "/home/ubuntu/dev/telegram-stock-info-bot"
+    # FOLDER_PATH = "/Users/seunghoonshin/dev/telegram-stock-info-bot"
     SEND_FOLDER = os.path.join(FOLDER_PATH, "send")
 
     # 최신 엑셀 파일 찾기 (KR_stock_screening_YYMMDD.xlsx 형식)
