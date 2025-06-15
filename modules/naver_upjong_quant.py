@@ -10,7 +10,7 @@ import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
-from utils.naver_stock_util import stock_fetch_yield_by_period, search_stock_code
+from utils.naver_stock_util import stock_fetch_yield_by_period, search_stock_code, get_industry_name
 from modules.finviz_stock_quant import fetch_worldstock_info
 
 
@@ -158,6 +158,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         '전일비': data.get('전일비', 'N/A'),
         '등락률': data.get('등락률', 'N/A'),
         '비고(메모)': data.get('비고(메모)', ' '),
+        '업종': data.get('업종', 'N/A'),
         '1D': data.get('등락률', 'N/A'),
         '1W': data.get('1W', 'N/A'),
         '1M': data.get('1M', 'N/A'),
@@ -192,7 +193,7 @@ def fetch_domestic_stock_info(headers, stock_code, reutersCode):
         return {}
 
     stock_basic_data = api_response.json()
-
+    print(stock_basic_data)
     data = {
         '종목명': stock_basic_data.get('stockName', 'N/A'),
         '시장구분': stock_basic_data.get('stockExchangeType', {}).get('nameEng', 'N/A'),
@@ -213,7 +214,10 @@ def fetch_domestic_stock_info(headers, stock_code, reutersCode):
 
     total_infos = api_response.json()
     total_infos = {info['key']: info['value'] for info in total_infos.get('totalInfos', [])}
-
+    industryCode = api_response.json()
+    industryCode = industryCode.get('industryCode', '')
+    industryName = get_industry_name(industryCode)
+    
     data.update({
         'PER': safe_float(total_infos.get('PER', 'N/A').replace('배', '')),
         'fwdPER': safe_float(total_infos.get('추정PER', 'N/A').replace('배', '')),
@@ -263,7 +267,7 @@ def fetch_domestic_stock_info(headers, stock_code, reutersCode):
 
     data['네이버url'] = f'https://finance.naver.com/item/main.naver?code={stock_code}'
     data['종목코드'] = str(stock_code)
-
+    data['업종'] = industryName     
     return data
 
 
@@ -278,9 +282,8 @@ def fetch_worldstock_info_NAVER(headers, stock_code, reutersCode):
     except Exception as e:
         print(f"Error fetching API data: {e}")
         return {}
-    print(api_response.content)
+    
     stock_data = api_response.json()
-    print(stock_data.get('closePrice'))
 
     data = {
         '종목명': stock_data.get('stockName', 'N/A'),

@@ -7,6 +7,43 @@ import pytz
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+
+# 전역 변수로 업종 코드-업종명 매핑 딕셔너리 선언
+industry_code_name_map = None
+
+def get_industry_name(industry_code):
+    """
+    업종 코드를 입력하면 업종명을 반환.
+    최초 호출 시에만 API를 통해 데이터를 로딩.
+    """
+    global industry_code_name_map
+    
+
+    def load_industry_code_name_map():
+        """
+        네이버 API에서 업종 목록을 받아와 코드-업종명 매핑 딕셔너리를 생성.
+        """
+        global industry_code_name_map
+        if industry_code_name_map is not None:
+            return  # 이미 로딩된 경우 재호출 방지
+
+        url = "https://m.stock.naver.com/api/stocks/industry?page=1&pageSize=100"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers)
+        data = response.json()
+
+        # 코드-업종명 매핑 생성
+        industry_code_name_map = {}
+        for group in data['groups']:
+            code = str(group['no'])
+            name = group['name']
+            industry_code_name_map[code] = name
+
+    
+    if industry_code_name_map is None:
+        load_industry_code_name_map()
+    return industry_code_name_map.get(str(industry_code), "알 수 없음")
+
 def check_market_status(nation_code):
     """주어진 nation_code에 따라 API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
