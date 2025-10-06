@@ -99,6 +99,9 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
         raise ValueError("Either 'stock_code' or 'stock_name' or 'url' or 'reutersCode' must be provided.")
     else:
         results = search_stock_code(stock_code)
+        if not results:
+            print(f"Stock with code '{stock_code}' not found on Naver API.")
+            return {}
         stock_code, stock_name, url, reutersCode, nationCode = results[0]['code'], results[0]['name'], results[0]['url'], results[0]['reutersCode'], results[0]['nationCode']
     
     # 캐시 디렉토리와 파일 접두어 설정
