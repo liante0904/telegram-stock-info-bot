@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
+from openpyxl import load_workbook
+from openpyxl.styles import Font
 
 # API 기본 URL
 kospi_url = "NAVER_KOSPI_MARKET_URL"
@@ -177,11 +179,47 @@ def main():
         
         print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
         
+        # 엑셀 서식 적용
+        beautify_excel(file_path)  # 엑셀 서식 적용
         # 생성된 파일을 Telegram으로 전송
         send_to_telegram()
     
     else:
         print("이미 처리된 파일이 Telegram으로 전송되었습니다.")
 
+
+def beautify_excel(file_path):
+    """
+    생성된 엑셀 파일을 불러와서 서식을 적용하는 함수
+    1. 헤더에 필터 적용
+    2. B열(종목명) 너비 조정 및 폰트 강조
+    """
+    # 엑셀 파일 불러오기
+    wb = load_workbook(file_path)
+    
+    # 모든 시트에 대해 반복
+    for ws in wb.worksheets:
+        # 1. 최상단 필터 설정 (데이터가 있는 전체 영역에 적용)
+        ws.auto_filter.ref = ws.dimensions
+
+        # 2. B열(종목명) 꾸미기
+        target_column = 'B'  # B열
+        
+        # 2-1. 너비 늘리기 (기본값 약 8 -> 25로 변경)
+        ws.column_dimensions[target_column].width = 25
+
+        # 2-2. 폰트 설정 (Bold, 사이즈 12)
+        # 맑은 고딕(Mac이면 AppleGothic), 크기 16, 굵게
+        b_col_font = Font(bold=True, size=16, name='Malgun Gothic')
+
+        # 헤더(1행)는 건너뛰고 2행부터 적용
+        for row in ws.iter_rows(min_row=2, min_col=2, max_col=2):
+            for cell in row:
+                cell.font = b_col_font
+
+    # 저장
+    wb.save(file_path)
+    print(f"✅ 서식 적용 완료: {file_path}")
+    
 if __name__ == '__main__':
     main()
