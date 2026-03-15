@@ -176,11 +176,28 @@ def main():
             df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)
             df_kosdaq.to_excel(writer, sheet_name="KOSDAQ", index=False)
             df_etf_etn.to_excel(writer, sheet_name="ETF_ETN", index=False)
+            
+            # xlsxwriter 객체 가져오기
+            workbook = writer.book
+            # 종목명(B열)에 적용할 서식 (아이폰 호환을 위해 Arial 사용)
+            name_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_name': 'Arial'})
+            
+            for sheet_name, df in zip(["KOSPI", "KOSDAQ", "ETF_ETN"], [df_kospi, df_kosdaq, df_etf_etn]):
+                worksheet = writer.sheets[sheet_name]
+                
+                # 1. 자동 필터 적용
+                (max_row, max_col) = df.shape
+                worksheet.autofilter(0, 0, max_row, max_col - 1)
+                
+                # 2. B열(종목명) 너비 조정 및 서식 적용
+                # set_column(시작열, 끝열, 너비, 서식) - 0부터 시작하므로 B열은 1
+                worksheet.set_column(1, 1, 25, name_format)
+                
+                # 3. 헤더 행(0행) 고정 (선택 사항, 모바일에서 보기 편함)
+                worksheet.freeze_panes(1, 0)
         
         print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
         
-        # 엑셀 서식 적용
-        beautify_excel(file_path)  # 엑셀 서식 적용
         # 생성된 파일을 Telegram으로 전송
         send_to_telegram()
     
@@ -188,38 +205,7 @@ def main():
         print("이미 처리된 파일이 Telegram으로 전송되었습니다.")
 
 
-def beautify_excel(file_path):
-    """
-    생성된 엑셀 파일을 불러와서 서식을 적용하는 함수
-    1. 헤더에 필터 적용
-    2. B열(종목명) 너비 조정 및 폰트 강조
-    """
-    # 엑셀 파일 불러오기
-    wb = load_workbook(file_path)
-    
-    # 모든 시트에 대해 반복
-    for ws in wb.worksheets:
-        # 1. 최상단 필터 설정 (데이터가 있는 전체 영역에 적용)
-        ws.auto_filter.ref = ws.dimensions
-
-        # 2. B열(종목명) 꾸미기
-        target_column = 'B'  # B열
-        
-        # 2-1. 너비 늘리기 (기본값 약 8 -> 25로 변경)
-        ws.column_dimensions[target_column].width = 25
-
-        # 2-2. 폰트 설정 (Bold, 사이즈 12)
-        # 맑은 고딕(Mac이면 AppleGothic), 크기 16, 굵게
-        b_col_font = Font(bold=True, size=16, name='Malgun Gothic')
-
-        # 헤더(1행)는 건너뛰고 2행부터 적용
-        for row in ws.iter_rows(min_row=2, min_col=2, max_col=2):
-            for cell in row:
-                cell.font = b_col_font
-
-    # 저장
-    wb.save(file_path)
-    print(f"✅ 서식 적용 완료: {file_path}")
+# beautify_excel 함수는 이제 사용하지 않으므로 제거하거나 주석 처리합니다.
     
 if __name__ == '__main__':
     main()
