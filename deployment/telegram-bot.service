@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram Stock Info Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dev/telegram-stock-info-bot
+# uv로 구성된 가상환경의 python을 직접 사용합니다.
+ExecStart=/home/ubuntu/dev/telegram-stock-info-bot/.venv/bin/python main.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
