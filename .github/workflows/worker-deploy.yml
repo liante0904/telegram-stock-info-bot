@@ -1,0 +1,69 @@
+name: Worker Deploy (GHCR)
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: reporter_worker/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          # 이미지 이름을 소문자로 확실하게 지정
+          tags: ghcr.io/liante0904/telegram-stock-info-bot-worker:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+            cd /home/ubuntu/dev/telegram-stock-info-bot
+            git fetch origin master
+            git reset --hard origin/master
+
+            # 배포 때마다 강제로 로그인 (토큰은 서버 환경변수나 시크릿으로 관리 가능)
+            # 여기서는 서버에 이미 저장된 정보를 쓰거나, 필요시 아래처럼 명시 가능
+            # echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # 이미지 pull 및 재시작
+            docker-compose pull reporter-worker
+            docker-compose up -d reporter-worker
+
+            docker image prune -f
+          EOF
