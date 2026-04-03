@@ -93,65 +93,74 @@ def add_quant_data(df, market_name):
     return df
 
 def send_to_telegram():
-    # .env 파일 로드
-    env_path = Path('/home/ubuntu/dev/telegram-stock-info-noti-bot/.env')
+    # 현재 파일 위치를 기준으로 설정
+    BASE_DIR = Path(__file__).parent.resolve()
+    
+    # .env 파일 로드 (로컬/도커 공통 지원)
+    env_path = BASE_DIR / ".env"
     load_dotenv(dotenv_path=env_path)
 
-    # 폴더 경로 설정
-    FOLDER_PATH = "/home/ubuntu/dev/telegram-stock-info-bot"
-    # FOLDER_PATH = "/Users/seunghoonshin/dev/telegram-stock-info-bot"
-    SEND_FOLDER = os.path.join(FOLDER_PATH, "send")
+    # 폴더 경로 설정 (상대 경로 사용)
+    SEND_FOLDER = BASE_DIR / "send"
 
     # 최신 엑셀 파일 찾기 (KR_stock_screening_YYMMDD.xlsx 형식)
     files = sorted(
-        [f for f in os.listdir(FOLDER_PATH) if f.startswith("KR_stock_screening_") and f.endswith(".xlsx")],
+        [f for f in os.listdir(BASE_DIR) if f.startswith("KR_stock_screening_") and f.endswith(".xlsx")],
         reverse=True
     )
     
     if not files:
-        print(f"오류: 전송할 파일을 찾을 수 없습니다. ({FOLDER_PATH}/KR_stock_screening_*.xlsx)")
+        print(f"오류: 전송할 파일을 찾을 수 없습니다. ({BASE_DIR}/KR_stock_screening_*.xlsx)")
         return False
 
-    FILE_PATH = os.path.join(FOLDER_PATH, files[0])
+    FILE_PATH = BASE_DIR / files[0]
     FILE_NAME = os.path.basename(FILE_PATH)
 
     # 메시지 설정
     MESSAGE = f"📊 주식 스크리닝 결과 파일 전송: {FILE_NAME}"
 
     # Telegram API 요청
+    token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
+    chat_id = os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM')
+    
+    if not token or not chat_id:
+        print("오류: 텔레그램 토큰 또는 채널 ID가 설정되지 않았습니다.")
+        return False
+
     url = f"TELEGRAM_SEND_DOCUMENT_URL"
     data = {
-        'chat_id': os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM'),
+        'chat_id': chat_id,
         'caption': MESSAGE
     }
     
     with open(FILE_PATH, 'rb') as file:
-        files = {'document': file}
-        response = requests.post(url, data=data, files=files)
+        files_dict = {'document': file}
+        response = requests.post(url, data=data, files=files_dict)
     
     # 응답 출력
     print(f"Response: {response.text}")
 
-    # send 폴더가 없으면 생성
+    # send 폴더 생성
     os.makedirs(SEND_FOLDER, exist_ok=True)
 
     # 전송한 파일 이동
-    new_file_path = os.path.join(SEND_FOLDER, FILE_NAME)
+    new_file_path = SEND_FOLDER / FILE_NAME
     os.rename(FILE_PATH, new_file_path)
     
     print(f"파일이 전송 후 이동되었습니다: {new_file_path}")
     return True
 
 def main():
+    BASE_DIR = Path(__file__).parent.resolve()
     today_date = datetime.today().strftime('%y%m%d')
-    send_folder = "send"
+    send_folder = BASE_DIR / "send"
     ensure_directory(send_folder)
     
     file_name = f"KR_stock_screening_{today_date}.xlsx"
-    file_path = os.path.join(send_folder, file_name)
+    file_path_in_send = send_folder / file_name
     
     # 1. send_folder에 해당일자 파일이 있는 경우 정상 종료
-    if os.path.exists(file_path):
+    if os.path.exists(file_path_in_send):
         print(f"{file_name} 파일이 이미 존재합니다. 프로그램을 종료합니다.")
         return
     
@@ -168,9 +177,8 @@ def main():
         df_kosdaq = add_quant_data(df_kosdaq, "KOSDAQ")
         df_etf_etn = add_quant_data(df_etf_etn, "ETF_ETN")
         
-        # send_folder가 아닌 기본 경로에 저장
-        base_path = "/home/ubuntu/dev/telegram-stock-info-bot"
-        file_path = os.path.join(base_path, file_name)
+        # 파일 저장 경로 설정
+        file_path = BASE_DIR / file_name
         
         with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
             df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)

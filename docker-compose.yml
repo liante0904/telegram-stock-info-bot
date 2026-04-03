@@ -1,0 +1,15 @@
+services:
+  reporter-worker:
+    image: ghcr.io/liante0904/telegram-stock-info-bot-worker:latest
+    container_name: stock-reporter-worker
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./cache:/app/cache
+      - ./send:/app/send
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"

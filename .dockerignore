@@ -1,0 +1,29 @@
+# Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# 데이터 및 리포트 (도커 내부에서 새로 생성하거나 외부 마운트)
+cache/
+db/
+excel/
+csv/
+chart/
+send/
+*.xlsx
+*.csv
+
+# 기타 설정 및 도구
+.git/
+.github/
+.gitignore
+README.md
+MIGRATION.md
+environment.yml
+
+# 프로젝트와 관계없는 것들
+run/.*
+watcher.py
+deployment/
