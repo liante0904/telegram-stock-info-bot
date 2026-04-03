@@ -38,8 +38,9 @@ COPY run/ ./run/
 COPY make_kr_excel_quant.py .
 COPY reporter_worker/scheduler.py .
 
-# 파이썬 경로 설정
+# 파이썬 경로 및 출력 버퍼 설정
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 # 실행
 CMD ["python", "scheduler.py"]
