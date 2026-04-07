@@ -92,7 +92,7 @@ def fetch_stock_info_in_upjong(upjong_link):
     
     return stock_data
 
-def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reutersCode=None):
+def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reutersCode=None, date=None):
     print('='*5, 'fetch_stock_info_quant_API', '='*5)
 
     if not stock_code and not stock_name and not url and not reutersCode:
@@ -123,7 +123,7 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     if 'domestic' in url:  # 국내 주식
         data = fetch_domestic_stock_info(headers, stock_code, reutersCode)
         # 기간 수익률 데이터 처리 (국내 주식의 경우만)
-        yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code)
+        yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code, date=date)
         for key, value in yield_data_dict.items():
             data[key] = value
     elif 'worldstock' in url:  # 해외 주식
@@ -499,7 +499,7 @@ def fetch_stock_info_quant(stock_code):
     # 기간 수익률
 
     # 문자열을 안전하게 딕셔너리로 변환
-    yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code)
+    yield_data_dict = stock_fetch_yield_by_period(stock_code=stock_code, date=date)
 
     # 각 키와 값을 data 딕셔너리에 추가
     for key, value in yield_data_dict.items():

@@ -1,5 +1,6 @@
 import requests
 import os
+_MARKET_STATUS_CACHE = {}
 import sys
 import math
 from datetime import datetime, timedelta, time
@@ -45,6 +46,14 @@ def get_industry_name(industry_code):
     return industry_code_name_map.get(str(industry_code), "알 수 없음")
 
 def check_market_status(nation_code):
+    global _MARKET_STATUS_CACHE
+    import pytz
+    from datetime import datetime, timedelta
+    kst = pytz.timezone("Asia/Seoul")
+    now = datetime.now(kst)
+    if nation_code in _MARKET_STATUS_CACHE:
+        res, t = _MARKET_STATUS_CACHE[nation_code]
+        if now - t < timedelta(minutes=5): return res
     """주어진 nation_code에 따라 API를 통해 시장 상태와 마지막 거래일을 확인하여 시장 상태를 결정합니다."""
     
     kst = pytz.timezone('Asia/Seoul')
@@ -87,7 +96,7 @@ def check_market_status(nation_code):
                     print("[DEBUG] 장이 휴장입니다.")
                     return 'CLOSE', last_traded_datetime  # 두 개의 값 반환
 
-            return market_status, last_traded_datetime  # 두 개의 값 반환
+            _MARKET_STATUS_CACHE[nation_code] = ((market_status, last_traded_datetime), now); return market_status, last_traded_datetime  # 두 개의 값 반환
 
         else:
             return 'UNKNOWN', None  # API 요청 실패 시 두 개의 값 반환
@@ -114,10 +123,20 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
             return None
 
     # 조회 기간을 380일로 설정 (1년 데이터 확보 보장)
-    end_date = datetime.now()
+    # 날짜 파라미터가 있으면 해당 날짜를 기준으로, 없으면 현재 시각 기준
+    if date:
+        if isinstance(date, str):
+            try:
+                if len(date) == 6: end_date = datetime.strptime(date, "%y%m%d")
+                else: end_date = datetime.strptime(date, "%Y%m%d")
+            except: end_date = datetime.now()
+        else: end_date = date
+    else:
+        end_date = datetime.now()
+    
     start_date = end_date - timedelta(days=380)
-    start_date_str = start_date.strftime('%Y%m%d')
-    end_date_str = end_date.strftime('%Y%m%d')
+    start_date_str = start_date.strftime("%Y%m%d")
+    end_date_str = end_date.strftime("%Y%m%d")
 
     trend_url = f'https://api.stock.naver.com/chart/domestic/item/{stock_code}/day?startDateTime={start_date_str}0000&endDateTime={end_date_str}0000'
     print(f"[DEBUG] Fetching data from {trend_url}")
