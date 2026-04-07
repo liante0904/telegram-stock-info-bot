@@ -1,219 +1,113 @@
-import random, time
-import os
-import requests
-import pandas as pd
-import math
-import concurrent.futures
+import random, time, os, requests, pandas as pd, math, concurrent.futures, sys
 from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
-from openpyxl import load_workbook
-from openpyxl.styles import Font
 
-# API 기본 URL
+# 전역 설정
 kospi_url = "NAVER_KOSPI_MARKET_URL"
 kosdaq_url = "NAVER_KOSDAQ_MARKET_URL"
-# 최대 스레드 수
-max_workers = 4
-
-# 요청 헤더
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-}
+max_workers = 4 
+headers = {"User-Agent": "Mozilla/5.0"}
 
 def ensure_directory(path):
-    """폴더가 존재하지 않으면 생성"""
-    if not os.path.exists(path):
-        os.makedirs(path)
+    if not os.path.exists(path): os.makedirs(path, exist_ok=True)
 
 def fetch_all_stocks(base_url, market_name):
     params = {"page": 1, "pageSize": 100}
     response = requests.get(base_url, headers=headers, params=params)
-    
-    if response.status_code != 200:
-        print(f"{market_name} 첫 페이지 요청 실패: {response.status_code}")
-        return []
-    
-    data = response.json()
-    total_count = data.get("totalCount", 0)
-    if total_count == 0:
-        print(f"{market_name}에서 totalCount를 가져올 수 없습니다.")
-        return []
-    
-    page_size = 100
-    total_pages = math.ceil(total_count / page_size)
-    print(f"{market_name} - 총 종목 수: {total_count}, 총 페이지 수: {total_pages}")
-    
-    all_stocks = []
-    etf_etn_stocks = []
-    for page in tqdm(range(1, total_pages + 1), desc=f"Fetching {market_name}"):
-        params = {"page": page, "pageSize": page_size}
-        response = requests.get(base_url, headers=headers, params=params)
-        
-        if response.status_code == 200:
-            page_data = response.json()
-            stocks = page_data.get("stocks", [])
-            for stock in stocks:
-                stock_name = stock.get("stockName", "")
-                if ('호스팩' in stock_name) or (stock_name.endswith('스팩') and '호' in stock_name):
-                    print(f"스팩 종목으로 추정되는 '{stock_name}'을(를) 건너뜁니다.")
-                    continue
-
-                stock_info = {
-                    "종목코드": stock.get("itemCode", ""),
-                    "종목명": stock.get("stockName", ""),
-                    "시가총액(억)": int(stock.get("marketValue", 0).replace(",", "")),
-                }
-                if stock.get("stockEndType") in ["etf", "etn"]:
-                    etf_etn_stocks.append(stock_info)
-                else:
-                    all_stocks.append(stock_info)
-        else:
-            print(f"{market_name} 페이지 {page} 요청 실패: {response.status_code}")
-    
+    if response.status_code != 200: return [], []
+    total_count = response.json().get("totalCount", 0)
+    total_pages = math.ceil(total_count / 100)
+    all_stocks, etf_etn_stocks = [], []
+    for page in range(1, total_pages + 1):
+        res = requests.get(base_url, headers=headers, params={"page": page, "pageSize": 100})
+        if res.status_code == 200:
+            for s in res.json().get("stocks", []):
+                name = s.get("stockName", "")
+                if '스팩' in name and '호' in name: continue
+                info = {"종목코드": s.get("itemCode", ""), "종목명": name, "시가총액(억)": int(str(s.get("marketValue", "0")).replace(",", ""))}
+                if s.get("stockEndType") in ["etf", "etn"]: etf_etn_stocks.append(info)
+                else: all_stocks.append(info)
     return all_stocks, etf_etn_stocks
 
-def fetch_quant_data(stock_info):
-    stock_code = stock_info["종목코드"]
+def fetch_quant_data(stock_info, target_date=None):
+    code = stock_info["종목코드"]
     url = f"NAVER_STOCK_PAGE_URL"
-    quant_data = fetch_stock_info_quant_API(stock_code, url)
-    time.sleep(random.uniform(1.0, 2.0))
-    return quant_data if quant_data else {}
+    # 날짜 인자를 추가하여 API 호출
+    return fetch_stock_info_quant_API(code, url=url, date=target_date) or {}
 
-def add_quant_data(df, market_name):
+def add_quant_data(df, market_name, target_date=None):
+    if df.empty: return df
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        quant_data_list = list(tqdm(executor.map(fetch_quant_data, df.to_dict('records')), total=len(df), desc=f"Fetching Quant Data for {market_name}"))
+        # target_date를 각 스레드에 전달
+        futures = [executor.submit(fetch_quant_data, row, target_date) for row in df.to_dict('records')]
+        results = [f.result() for f in tqdm(futures, desc=f"Quant {market_name}", leave=False)]
     
-    quant_df = pd.DataFrame(quant_data_list)
-    df = pd.concat([df, quant_df], axis=1)
-    df = df.sort_values(by="시가총액(억)", ascending=False)
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
+    df_res = pd.concat([df, pd.DataFrame(results)], axis=1)
+    return df_res.sort_values(by="시가총액(억)", ascending=False).loc[:, ~df_res.columns.duplicated()]
 
-def send_to_telegram():
-    # 현재 파일 위치를 기준으로 설정
+def process_market_unit(market_tuple, target_date=None):
+    market_name, base_url = market_tuple
+    print(f"[{market_name}] 데이터 수집 시작... (기준일: {target_date or '오늘'})")
+    stocks, etf_etn = fetch_all_stocks(base_url, market_name)
+    df = add_quant_data(pd.DataFrame(stocks), market_name, target_date)
+    return market_name, df, etf_etn
+
+def send_to_telegram(file_name, target_date):
     BASE_DIR = Path(__file__).parent.resolve()
-    
-    # .env 파일 로드 (로컬/도커 공통 지원)
-    env_path = BASE_DIR / ".env"
-    load_dotenv(dotenv_path=env_path)
-
-    # 폴더 경로 설정 (상대 경로 사용)
-    SEND_FOLDER = BASE_DIR / "send"
-
-    # 최신 엑셀 파일 찾기 (KR_stock_screening_YYMMDD.xlsx 형식)
-    files = sorted(
-        [f for f in os.listdir(BASE_DIR) if f.startswith("KR_stock_screening_") and f.endswith(".xlsx")],
-        reverse=True
-    )
-    
-    if not files:
-        print(f"오류: 전송할 파일을 찾을 수 없습니다. ({BASE_DIR}/KR_stock_screening_*.xlsx)")
-        return False
-
-    FILE_PATH = BASE_DIR / files[0]
-    FILE_NAME = os.path.basename(FILE_PATH)
-
-    # 메시지 설정
-    MESSAGE = f"📊 주식 스크리닝 결과 파일 전송: {FILE_NAME}"
-
-    # Telegram API 요청
+    load_dotenv(dotenv_path=BASE_DIR / ".env")
+    FILE_PATH = BASE_DIR / "send" / file_name
+    if not os.path.exists(FILE_PATH): return False
     token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
     chat_id = os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM')
-    
-    if not token or not chat_id:
-        print("오류: 텔레그램 토큰 또는 채널 ID가 설정되지 않았습니다.")
-        return False
-
+    if not token or not chat_id: return False
     url = f"TELEGRAM_SEND_DOCUMENT_URL"
-    data = {
-        'chat_id': chat_id,
-        'caption': MESSAGE
-    }
-    
-    with open(FILE_PATH, 'rb') as file:
-        files_dict = {'document': file}
-        response = requests.post(url, data=data, files=files_dict)
-    
-    # 응답 출력
-    print(f"Response: {response.text}")
-
-    # send 폴더 생성
-    os.makedirs(SEND_FOLDER, exist_ok=True)
-
-    # 전송한 파일 이동
-    new_file_path = SEND_FOLDER / FILE_NAME
-    os.rename(FILE_PATH, new_file_path)
-    
-    print(f"파일이 전송 후 이동되었습니다: {new_file_path}")
-    return True
+    caption = f"📊 [{target_date}] 주식 스크리닝 결과"
+    with open(FILE_PATH, 'rb') as f:
+        res = requests.post(url, data={'chat_id': chat_id, 'caption': caption}, files={'document': f})
+    return res.status_code == 200
 
 def main():
+    target_date = sys.argv[1] if len(sys.argv) > 1 else datetime.today().strftime('%y%m%d')
     BASE_DIR = Path(__file__).parent.resolve()
-    today_date = datetime.today().strftime('%y%m%d')
-    send_folder = BASE_DIR / "send"
-    ensure_directory(send_folder)
-    
-    file_name = f"KR_stock_screening_{today_date}.xlsx"
-    file_path_in_send = send_folder / file_name
-    
-    # 1. send_folder에 해당일자 파일이 있는 경우 정상 종료
-    if os.path.exists(file_path_in_send):
-        print(f"{file_name} 파일이 이미 존재합니다. 프로그램을 종료합니다.")
-        return
-    
-    # 2. send_folder에 파일이 없고, send_to_telegram()로 보낼 파일이 없는 경우
-    if not send_to_telegram():  # 최초 전송 시도 후 파일이 없으면 데이터 생성
-        kospi_stocks, kospi_etf_etn = fetch_all_stocks(kospi_url, "KOSPI")
-        kosdaq_stocks, kosdaq_etf_etn = fetch_all_stocks(kosdaq_url, "KOSDAQ")
-        
-        df_kospi = pd.DataFrame(kospi_stocks)
-        df_kosdaq = pd.DataFrame(kosdaq_stocks)
-        df_etf_etn = pd.DataFrame(kospi_etf_etn + kosdaq_etf_etn)
-        
-        df_kospi = add_quant_data(df_kospi, "KOSPI")
-        df_kosdaq = add_quant_data(df_kosdaq, "KOSDAQ")
-        df_etf_etn = add_quant_data(df_etf_etn, "ETF_ETN")
-        
-        # 파일 저장 경로 설정
-        file_path = BASE_DIR / file_name
-        
-        with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
-            df_kospi.to_excel(writer, sheet_name="KOSPI", index=False)
-            df_kosdaq.to_excel(writer, sheet_name="KOSDAQ", index=False)
-            df_etf_etn.to_excel(writer, sheet_name="ETF_ETN", index=False)
-            
-            # xlsxwriter 객체 가져오기
-            workbook = writer.book
-            # 종목명(B열)에 적용할 서식 (아이폰 호환을 위해 Arial 사용)
-            name_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_name': 'Arial'})
-            
-            for sheet_name, df in zip(["KOSPI", "KOSDAQ", "ETF_ETN"], [df_kospi, df_kosdaq, df_etf_etn]):
-                worksheet = writer.sheets[sheet_name]
-                
-                # 1. 자동 필터 적용
-                (max_row, max_col) = df.shape
-                worksheet.autofilter(0, 0, max_row, max_col - 1)
-                
-                # 2. B열(종목명) 너비 조정 및 서식 적용
-                # set_column(시작열, 끝열, 너비, 서식) - 0부터 시작하므로 B열은 1
-                worksheet.set_column(1, 1, 25, name_format)
-                
-                # 3. 헤더 행(0행) 고정 (선택 사항, 모바일에서 보기 편함)
-                worksheet.freeze_panes(1, 0)
-        
-        print(f"\n데이터가 '{file_name}' 파일에 저장되었습니다. (시트: KOSPI, KOSDAQ, ETF_ETN)")
-        
-        # 생성된 파일을 Telegram으로 전송
-        send_to_telegram()
-    
-    else:
-        print("이미 처리된 파일이 Telegram으로 전송되었습니다.")
+    send_dir = BASE_DIR / "send"
+    ensure_directory(send_dir)
+    file_name = f"KR_stock_screening_{target_date}.xlsx"
+    file_path = send_dir / file_name
 
+    # 과거 날짜 작업 시 기존 파일이 있으면 덮어쓰기 위해 삭제
+    if os.path.exists(file_path):
+        try: os.remove(file_path)
+        except: pass
 
-# beautify_excel 함수는 이제 사용하지 않으므로 제거하거나 주석 처리합니다.
+    print(f"🚀 [{target_date}] 병렬 수집 및 실시간 수익률 계산 시작...")
+    markets_to_process = [("KOSPI", kospi_url), ("KOSDAQ", kosdaq_url)]
     
+    market_dfs = {}
+    combined_etf_etn = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(process_market_unit, m, target_date) for m in markets_to_process]
+        for future in concurrent.futures.as_completed(futures):
+            name, df, etf_list = future.result()
+            market_dfs[name] = df
+            combined_etf_etn.extend(etf_list)
+
+    print("[ETF_ETN] 데이터 수집 시작...")
+    df_etf = add_quant_data(pd.DataFrame(combined_etf_etn), "ETF_ETN", target_date)
+
+    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
+        if "KOSPI" in market_dfs: market_dfs["KOSPI"].to_excel(writer, sheet_name="KOSPI", index=False)
+        if "KOSDAQ" in market_dfs: market_dfs["KOSDAQ"].to_excel(writer, sheet_name="KOSDAQ", index=False)
+        df_etf.to_excel(writer, sheet_name="ETF_ETN", index=False)
+        for sheet in writer.sheets.values():
+            sheet.set_column(1, 1, 25)
+            sheet.freeze_panes(1, 0)
+    
+    print(f"✅ [{target_date}] 엑셀 생성 완료 -> 전송")
+    send_to_telegram(file_name, target_date)
+
 if __name__ == '__main__':
     main()
