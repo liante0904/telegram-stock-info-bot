@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import asyncio
 import re
-import json
 import time
 from telegram import Update, BotCommand, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, CallbackContext
@@ -31,12 +30,9 @@ COMMAND_LIST = [
     ("upjong_quant", "네이버 업종퀀트"),
     ("dividend_quant", "국내배당퀀트"),
     ("stock_quant", "종목 퀀트"),
-    ("excel_quant", "엑셀 퀀트"),
-    ("report_alert_keyword", "레포트 알림 키워드 설정")
+    ("excel_quant", "엑셀 퀀트")
 ]
 
-# JSON 파일 경로
-KEYWORD_FILE_PATH = 'report_alert_keyword.json'
 # Define the folder path
 CSV_FOLDER_PATH = 'csv/'  # Adjust this to your actual folder path if needed
 EXCEL_FOLDER_PATH = 'excel/'  # Adjust this to your actual folder path if needed
@@ -74,30 +70,6 @@ async def search_naver_report(update: Update, context: CallbackContext) -> None:
     await context.bot.send_message(chat_id=chat_id, text='레포트를 검색할 종목명을 입력하세요. (네이버 금융 리서치에서 검색)')
     context.user_data['next_command'] = 'search_naver_report'
 
-async def report_alert_keyword(update: Update, context: CallbackContext) -> None:
-    chat_id = update.effective_chat.id
-    user_id = str(update.effective_user.id)
-    
-    # 현재 저장된 키워드 로드
-    all_keywords = load_alert_keywords()
-    current_keywords = [keyword['keyword'] for keyword in all_keywords.get(user_id, [])]
-
-    # 사용자에게 현재 저장된 키워드를 보여주고 입력 요청
-    if current_keywords:
-        keyword_text = '\n'.join([f"- {keyword}" for keyword in current_keywords])
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"현재 저장된 알림 키워드:\n{keyword_text}\n\n새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요. \n\n '키워드 삭제' 를 하면 전체 키워드가 삭제 됩니다."
-        )
-    else:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text='현재 저장된 알림 키워드가 없습니다. 새로운 키워드를 쉼표(,) 또는 하이픈(-)으로 구분하여 입력해주세요.'
-        )
-
-    # 다음 명령어 상태 설정
-    context.user_data['next_command'] = 'report_alert_keyword'
-
 async def send_dividend_total_stock_count(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     try:
@@ -118,18 +90,6 @@ async def send_dividend_total_stock_count(update: Update, context: CallbackConte
 
     context.user_data['next_command'] = 'dividend_quant'
     
-# JSON 파일에서 사용자 알림 키워드를 불러오는 함수
-def load_alert_keywords():
-    if os.path.exists(KEYWORD_FILE_PATH):
-        with open(KEYWORD_FILE_PATH, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    return {}
-
-# JSON 파일에 사용자 알림 키워드를 저장하는 함수
-def save_alert_keywords(keywords):
-    with open(KEYWORD_FILE_PATH, 'w', encoding='utf-8') as file:
-        json.dump(keywords, file, ensure_ascii=False, indent=4)
-
 async def route_command_based_on_user_input(update: Update, context: CallbackContext) -> None:
     """
     Handles the user's input after a command has been selected. This function 
@@ -225,56 +185,6 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         
         context.user_data['next_command'] = None
             
-    async def update_alert_keywords(update: Update, context: CallbackContext) -> None:
-        chat_id = update.effective_chat.id
-        user_id = str(update.effective_user.id)
-        
-        # 키워드 알림 처리
-        keywords = [keyword.strip() for keyword in re.split('[,-]', user_input) if keyword.strip()]
-        unique_keywords = set(keywords)
-        all_keywords = load_alert_keywords()
-
-        if user_id not in all_keywords:
-            all_keywords[user_id] = []
-
-        existing_keywords = {entry['keyword'] for entry in all_keywords.get(user_id, [])}
-        new_keywords = [{'keyword': keyword, 'code': '', 'timestamp': datetime.now().isoformat()} for keyword in unique_keywords if keyword not in existing_keywords]
-        all_keywords[user_id].extend(new_keywords)
-        unique_user_keywords = {entry['keyword']: entry for entry in all_keywords[user_id]}
-        all_keywords[user_id] = list(unique_user_keywords.values())
-
-        save_alert_keywords(all_keywords)
-
-        context.user_data['next_command'] = None
-        updated_keywords = [keyword['keyword'] for keyword in all_keywords[user_id]]
-        updated_keywords_text = '\n'.join([f"- {keyword}" for keyword in updated_keywords])
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"키워드 알림이 설정되었습니다.\n\n현재 저장된 알림 키워드:\n{updated_keywords_text}"
-        )
-        context.user_data['next_command'] = None
-    
-    async def detele_all_alert_keywords(update: Update, context: CallbackContext) -> None:
-        chat_id = update.effective_chat.id
-        user_id = str(update.effective_user.id)
-        all_keywords = load_alert_keywords()
-        
-        # 사용자 아이디에 해당하는 키워드 리스트를 빈 리스트로 설정
-        if user_id in all_keywords:
-            all_keywords[user_id] = []  # 해당 사용자의 모든 키워드를 삭제
-            save_alert_keywords(all_keywords)
-            
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text='모든 알림 키워드가 삭제되었습니다.'
-            )
-        else:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text='삭제할 키워드가 없습니다.'
-            )
-        context.user_data['next_command'] = None
-    
     async def make_stock_quant_excel(update: Update, context: CallbackContext) -> None:    
         stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
         context.user_data['stock_list'] = stock_list
@@ -346,13 +256,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 await context.bot.send_message(chat_id=chat_id, text="Excel 파일을 생성하는 데 문제가 발생했습니다.")
     
     try:
-        if next_command == 'report_alert_keyword':
-            if user_input.lower() == '키워드 삭제':
-                await detele_all_alert_keywords(update, context)
-            else:
-                await update_alert_keywords(update, context)
-
-        elif next_command == 'generate_chart':
+        if next_command == 'generate_chart':
             # 차트 생성 처리
             stock_list = [stock.strip() for stock in re.split('[,\n]', user_input) if stock.strip()]
             context.user_data['stock_list'] = stock_list
@@ -581,7 +485,6 @@ def main():
     application.add_handler(CommandHandler("dividend_quant", send_dividend_total_stock_count))  
     application.add_handler(CommandHandler("stock_quant", stock_quant))  
     application.add_handler(CommandHandler("excel_quant", excel_quant))
-    application.add_handler(CommandHandler("report_alert_keyword", report_alert_keyword))  # 알림 키워드 명령어 추가
 
 
     application.add_handler(CallbackQueryHandler(route_command_based_on_user_input, pattern=r'^\d{6}$'))
