@@ -22,10 +22,10 @@ async def process_selected_stock_for_chart(update: Update, context: CallbackCont
     save_recent_searches(context.bot_data['recent_searches'])
 
     chart_filename = draw_chart(stock_code, stock_name)
-    if os.path.exists(chart_filename):
+    if chart_filename and os.path.exists(chart_filename):
         context.user_data['generated_charts'].append(chart_filename)
     else:
-        await update.callback_query.message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
+        await update.callback_query.message.reply_text(f"차트 데이터를 가져오지 못했거나 파일을 찾을 수 없습니다: {stock_name}")
 
     # 나머지 종목 처리
     remaining_stocks = context.user_data.get('remaining_stocks', [])
@@ -81,10 +81,10 @@ async def process_generate_chart_stock_list(update: Update, context: CallbackCon
             save_recent_searches(context.bot_data['recent_searches'])
 
             chart_filename = draw_chart(stock_code, stock_name)
-            if os.path.exists(chart_filename):
+            if chart_filename and os.path.exists(chart_filename):
                 context.user_data['generated_charts'].append(chart_filename)
             else:
-                await message.reply_text(f"차트 파일을 찾을 수 없습니다: {chart_filename}")
+                await message.reply_text(f"차트 데이터를 가져오지 못했거나 파일을 찾을 수 없습니다: {stock_name}")
 
         elif results and len(results) > 1:
             buttons = [[InlineKeyboardButton(f"{result['name']} ({result['code']})", callback_data=result['code'])] for result in results]
