@@ -53,17 +53,13 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
-            cd /home/ubuntu/dev/telegram-stock-info-bot
+            cd /home/ubuntu/prod/telegram-stock-info-bot
             git fetch origin master
             git reset --hard origin/master
 
-            # 배포 때마다 강제로 로그인 (토큰은 서버 환경변수나 시크릿으로 관리 가능)
-            # 여기서는 서버에 이미 저장된 정보를 쓰거나, 필요시 아래처럼 명시 가능
-            # echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
             # 이미지 pull 및 재시작
-            docker-compose pull reporter-worker
-            docker-compose up -d reporter-worker
+            docker compose pull reporter-worker
+            docker compose up -d reporter-worker
 
             docker image prune -f
           EOF
