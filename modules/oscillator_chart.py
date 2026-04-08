@@ -20,17 +20,45 @@ def draw_chart(stock_code, stock_name):
         os.makedirs(CHART_DIR)
     
     now = datetime.now()
+    # 장 마감 전이면 전일을 종료일로 설정 (데이터 안정성 확보)
     if now.hour < 18:
         end_date = (now - timedelta(days=1)).strftime('%Y-%m-%d')
     else:
         end_date = now.strftime('%Y-%m-%d')
-    start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=120)).strftime('%Y-%m-%d')
     
-    trading_value = stock.get_market_trading_value_by_date(start_date, end_date, stock_code, on='순매수')
+    # 넉넉하게 150일치 데이터를 가져오도록 설정
+    start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=150)).strftime('%Y-%m-%d')
     
-    # 기관과 외국인의 순매수 금액 5일 합 계산
-    trading_value['외국인_순매수_5일합'] = trading_value['외국인합계'].rolling(window=5).sum()
-    trading_value['기관_순매수_5일합'] = trading_value['기관합계'].rolling(window=5).sum()
+    # pykrx는 하이픈 없는 YYYYMMDD 형식을 선호합니다.
+    start_date_krx = start_date.replace('-', '')
+    end_date_krx = end_date.replace('-', '')
+    
+    print(f"[DEBUG] Drawing chart for {stock_name} ({stock_code}) from {start_date_krx} to {end_date_krx}")
+    
+    try:
+        trading_value = stock.get_market_trading_value_by_date(start_date_krx, end_date_krx, stock_code, on='순매수')
+        
+        if trading_value.empty:
+            print(f"[ERROR] No trading value data found for {stock_name} between {start_date} and {end_date}")
+            return None
+
+        # 실제 컬럼명 로그 출력 (디버깅용)
+        print(f"[DEBUG] Trading columns for {stock_name}: {trading_value.columns.tolist()}")
+
+        # 컬럼명 유연하게 처리
+        foreign_col = next((c for c in ['외국인합계', '외국인'] if c in trading_value.columns), None)
+        inst_col = next((c for c in ['기관합계', '기관'] if c in trading_value.columns), None)
+
+        if not foreign_col or not inst_col:
+            print(f"[ERROR] Required columns (Foreign/Inst) not found for {stock_name}. Columns: {trading_value.columns.tolist()}")
+            return None
+
+        # 기관과 외국인의 순매수 금액 5일 합 계산
+        trading_value['외국인_순매수_5일합'] = trading_value[foreign_col].rolling(window=5).sum()
+        trading_value['기관_순매수_5일합'] = trading_value[inst_col].rolling(window=5).sum()
+    except Exception as e:
+        print(f"[ERROR] Exception in draw_chart for {stock_name}: {e}")
+        return None
 
     # 억 원 단위로 변환 및 반올림 처리
     trading_value['외국인_순매수_5일합'] = trading_value['외국인_순매수_5일합'].apply(convert_and_round)

@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import CallbackContext
 
 # 파일 경로 설정
-RECENT_SEARCHES_FILE = 'recent_searches.json'
+RECENT_SEARCHES_FILE = 'json/recent_searches.json'
 
 def load_recent_searches():
     if os.path.exists(RECENT_SEARCHES_FILE):

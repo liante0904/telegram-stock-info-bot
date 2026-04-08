@@ -500,9 +500,11 @@ def main():
     application.add_handler(CallbackQueryHandler(show_commands, pattern="^main_menu$"))
     application.add_handler(CallbackQueryHandler(search_report, pattern="^search_new_keyword$"))
 
-    # asyncio 이벤트 루프에서 명령어 설정
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_commands(application.bot))
+    # post_init을 사용하여 봇이 시작될 때 명령어를 설정합니다
+    async def post_init(application):
+        await set_commands(application.bot)
+    
+    application.post_init = post_init
 
     application.run_polling()
 
