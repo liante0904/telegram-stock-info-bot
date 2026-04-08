@@ -314,6 +314,35 @@ def calculate_page_count(requested_count: int, page_size: int = 100) -> int:
     # 페이지 수 계산 (ceil 사용하여 올림 처리)
     return math.ceil(requested_count / page_size)
 
+def safe_float(value):
+    """문자열을 float으로 안전하게 변환 (N/A 처리)"""
+    if value in (None, 'N/A', '', 'None', 'nan'):
+        return 'N/A'
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('%', '').strip()
+        return float(value)
+    except (ValueError, TypeError):
+        return 'N/A'
+
+def safe_int(value):
+    """문자열을 int로 안전하게 변환 (N/A 처리)"""
+    if value in (None, 'N/A', '', 'None', 'nan'):
+        return 'N/A'
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').strip()
+        return int(float(value))
+    except (ValueError, TypeError):
+        return 'N/A'
+
+def clean_numeric_dict(data, numeric_keys):
+    """딕셔너리의 특정 키값들을 숫자로 변환"""
+    for key in numeric_keys:
+        if key in data:
+            data[key] = safe_float(data[key])
+    return data
+
 def main():
     r = stock_fetch_yield_by_period('005930')
     print(r)
