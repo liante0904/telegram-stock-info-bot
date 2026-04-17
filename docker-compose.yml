@@ -1,12 +1,14 @@
 services:
   telegram-bot:
-    build: .
-    container_name: stock-telegram-bot
+    image: ghcr.io/liante0904/telegram-stock-info-bot:latest
+    container_name: stock-telegram-bot-${APP_ENV:-prod}
     restart: always
     user: "1001:1001"
     env_file:
       - .env
     environment:
+      - APP_ENV=${APP_ENV:-prod}
+      - TZ=Asia/Seoul
       - MPLCONFIGDIR=/tmp/matplotlib
     volumes:
       - ./cache:/app/cache
@@ -25,12 +27,14 @@ services:
   reporter-worker:
     # 만약 로컬 빌드를 원하면 build: ./reporter_worker 로 변경 가능
     image: ghcr.io/liante0904/telegram-stock-info-bot-worker:latest
-    container_name: stock-reporter-worker
+    container_name: stock-reporter-worker-${APP_ENV:-prod}
     user: "1001:1001"
     restart: always
     env_file:
       - .env
     environment:
+      - APP_ENV=${APP_ENV:-prod}
+      - TZ=Asia/Seoul
       - MPLCONFIGDIR=/tmp/matplotlib
     volumes:
       - ./cache:/app/cache

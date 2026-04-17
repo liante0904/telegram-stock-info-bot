@@ -3,38 +3,61 @@ name: Deploy
 on:
   push:
     branches:
-      - master  # master 브랜치에 푸시할 때 트리거
+      - master
 
 jobs:
-  deploy:
-    runs-on: ubuntu-22.04  # GitHub Actions에서 Ubuntu 22.04 환경을 사용
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10.12'  # Python 3.10.12 배포서버 <-> 3.10.2 개발
-        cache: 'pip' # caching pip dependencies
-    - name: Install dependencies and deploy
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        SERVER_USER: ${{ secrets.SERVER_USER }}
-      run: |
-        mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        
-        ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
-          cd /home/ubuntu/prod/telegram-stock-info-bot  # 실제 배포할 프로젝트 경로
-          git fetch --all && git reset --hard origin/master
-          git pull origin master
-          
-          # 도커 빌드 및 재시작 (uv 기반)
-          docker compose build telegram-bot
-          docker compose up -d telegram-bot
-          docker image prune -f
-        EOF
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/liante0904/telegram-stock-info-bot:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+            cd /home/ubuntu/prod/telegram-stock-info-bot
+            git fetch origin master
+            git reset --hard origin/master
+
+            docker compose pull telegram-bot
+            docker compose up -d telegram-bot
+            docker image prune -f
+          EOF
