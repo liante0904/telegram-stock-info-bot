@@ -8,6 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from dotenv import load_dotenv
 from modules.naver_upjong_quant import fetch_upjong_list_API, fetch_stock_info_in_upjong, fetch_stock_info_quant_API
 from utils.naver_stock_util import search_stock_code
+from secrets.endpoints import NAVER_FINANCE_STOCK_PREFIX
 from utils.recent_search_util import load_recent_searches, show_recent_searches
 from modules.naver_stock_quant import fetch_dividend_stock_list_API
 from utils.excel_util import process_excel_file
@@ -372,7 +373,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
                         memo = '' if pd.isna(memo) else memo
 
                         if naver_url:
-                            stock_code = naver_url.replace('NAVER_FINANCE_STOCK_PREFIX', '')
+                            stock_code = naver_url.replace(NAVER_FINANCE_STOCK_PREFIX, '')
                         try:
                             # 퀀트 데이터 가져오기
                             if stock_code:

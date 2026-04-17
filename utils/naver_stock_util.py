@@ -7,6 +7,10 @@ from datetime import datetime, timedelta, time
 import pytz
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from secrets.endpoints import (
+    NAVER_INDUSTRY_PAGED_URL, NAVER_KOSPI_INDEX_URL,
+    NAVER_NATION_INDEX_URL, NAVER_STOCK_CHART_URL, NAVER_AC_URL,
+)
 
 
 # 전역 변수로 업종 코드-업종명 매핑 딕셔너리 선언
@@ -28,7 +32,7 @@ def get_industry_name(industry_code):
         if industry_code_name_map is not None:
             return  # 이미 로딩된 경우 재호출 방지
 
-        url = "NAVER_INDUSTRY_URL"
+        url = NAVER_INDUSTRY_PAGED_URL
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers)
         data = response.json()
@@ -61,9 +65,9 @@ def check_market_status(nation_code):
 
     # nation_code에 따른 API URL 정의
     if nation_code == 'KOR':
-        api_url = 'NAVER_KOSPI_INDEX_URL'  # 한국 시장
+        api_url = NAVER_KOSPI_INDEX_URL  # 한국 시장
     else:
-        api_url = f'NAVER_NATION_INDEX_URL'  # 해외 시장
+        api_url = NAVER_NATION_INDEX_URL.format(nation_code=nation_code)  # 해외 시장
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -138,7 +142,7 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
     start_date_str = start_date.strftime("%Y%m%d")
     end_date_str = end_date.strftime("%Y%m%d")
 
-    trend_url = f'NAVER_STOCK_CHART_URL'
+    trend_url = NAVER_STOCK_CHART_URL.format(stock_code=stock_code, start_date=start_date_str, end_date=end_date_str)
     print(f"[DEBUG] Fetching data from {trend_url}")
     trend_data = fetch_data(trend_url)
 
@@ -238,7 +242,7 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
     return returns
 
 def search_stock_code(query):
-    url = 'NAVER_AC_URL'
+    url = NAVER_AC_URL
     params = {
         'q': query,
         'target': 'index,stock,marketindicator'

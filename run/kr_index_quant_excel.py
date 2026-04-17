@@ -5,6 +5,8 @@ import requests
 from openpyxl import Workbook
 from dotenv import load_dotenv
 from datetime import datetime
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from secrets.endpoints import NAVER_DOMESTIC_STOCK_URL
 
 # .env 파일 로드
 load_dotenv()
@@ -81,7 +83,7 @@ def fetch_quant_data_for_all_stocks(stocks):
     for stock in stocks:
         stock_code = stock["itemCode"]
         stock_name = stock["stockName"]
-        url = f"NAVER_DOMESTIC_STOCK_URL"
+        url = NAVER_DOMESTIC_STOCK_URL.format(stock_code=stock_code)
 
         quant_data = fetch_stock_info_quant_API(stock_code, url)
         if quant_data:

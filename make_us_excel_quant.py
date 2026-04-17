@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
+from secrets.endpoints import (
+    NAVER_NYSE_MARKET_URL, NAVER_NASDAQ_MARKET_URL, NAVER_AMEX_MARKET_URL,
+    NAVER_STOCK_PAGE_URL, TELEGRAM_SEND_DOCUMENT_URL,
+)
 
 # .env 파일 로드
 env_path = load_dotenv()
@@ -17,9 +21,9 @@ env_path = load_dotenv()
 PROJECT_ROOT_PATH = os.getenv("PROJECT_ROOT_PATH")
 
 # API 기본 URL
-nyse_url = "NAVER_NYSE_MARKET_URL"
-nasdaq_url = "NAVER_NASDAQ_MARKET_URL"
-amex_url = "NAVER_AMEX_MARKET_URL"
+nyse_url = NAVER_NYSE_MARKET_URL
+nasdaq_url = NAVER_NASDAQ_MARKET_URL
+amex_url = NAVER_AMEX_MARKET_URL
 
 # 최대 스레드 수
 max_workers = 4
@@ -80,7 +84,7 @@ def fetch_all_stocks(base_url, market_name):
 def fetch_quant_data(stock_info):
     stock_code = stock_info["종목코드"]
     
-    url = f"NAVER_STOCK_PAGE_URL"
+    url = NAVER_STOCK_PAGE_URL.format(code=stock_code)
     quant_data = fetch_stock_info_quant_API(stock_code, url)
     time.sleep(random.uniform(1.0, 2.0))
     return quant_data if quant_data else {}
@@ -122,7 +126,7 @@ def send_to_telegram():
     MESSAGE = f"📊 미국 주식 스크리닝 결과 파일 전송: {FILE_NAME}"
 
     # Telegram API 요청
-    url = f"TELEGRAM_SEND_DOCUMENT_URL"
+    url = TELEGRAM_SEND_DOCUMENT_URL.format(token=os.getenv('TELEGRAM_BOT_TOKEN_PROD'))
     data = {
         'chat_id': os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM'),
         'caption': MESSAGE

@@ -4,10 +4,14 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
+from secrets.endpoints import (
+    NAVER_KOSPI_MARKET_URL, NAVER_KOSDAQ_MARKET_URL,
+    NAVER_STOCK_PAGE_URL, TELEGRAM_SEND_DOCUMENT_URL,
+)
 
 # 전역 설정
-kospi_url = "NAVER_KOSPI_MARKET_URL"
-kosdaq_url = "NAVER_KOSDAQ_MARKET_URL"
+kospi_url = NAVER_KOSPI_MARKET_URL
+kosdaq_url = NAVER_KOSDAQ_MARKET_URL
 max_workers = 4 
 headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -34,7 +38,7 @@ def fetch_all_stocks(base_url, market_name):
 
 def fetch_quant_data(stock_info, target_date=None):
     code = stock_info["종목코드"]
-    url = f"NAVER_STOCK_PAGE_URL"
+    url = NAVER_STOCK_PAGE_URL.format(code=code)
     # 날짜 인자를 추가하여 API 호출
     return fetch_stock_info_quant_API(code, url=url, date=target_date) or {}
 
@@ -63,7 +67,7 @@ def send_to_telegram(file_name, target_date):
     token = os.getenv('TELEGRAM_BOT_TOKEN_PROD')
     chat_id = os.getenv('TELEGRAM_CHANNEL_ID_REPORT_ALARM')
     if not token or not chat_id: return False
-    url = f"TELEGRAM_SEND_DOCUMENT_URL"
+    url = TELEGRAM_SEND_DOCUMENT_URL.format(token=token)
     caption = f"📊 [{target_date}] 주식 스크리닝 결과"
     with open(FILE_PATH, 'rb') as f:
         res = requests.post(url, data={'chat_id': chat_id, 'caption': caption}, files={'document': f})

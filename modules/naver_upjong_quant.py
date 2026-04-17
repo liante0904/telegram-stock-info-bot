@@ -10,6 +10,11 @@ import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
+from secrets.endpoints import (
+    NAVER_INDUSTRY_URL, NAVER_FINANCE_BASE,
+    NAVER_STOCK_BASIC_URL, NAVER_STOCK_INTEGRATION_URL,
+    NAVER_STOCK_FINANCE_URL, NAVER_REUTERS_BASIC_URL,
+)
 from utils.naver_stock_util import stock_fetch_yield_by_period, search_stock_code, get_industry_name, safe_float, safe_int, clean_numeric_dict
 from modules.finviz_stock_quant import fetch_worldstock_info
 
@@ -27,7 +32,7 @@ def fetch_upjong_list_API(nation_code):
         return cache_manager.load_cache('upjong').get('result', [])
     
     print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
-    url = "NAVER_INDUSTRY_URL"
+    url = NAVER_INDUSTRY_URL
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -52,7 +57,7 @@ def fetch_stock_info_in_upjong(upjong_link):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    base_url = 'NAVER_FINANCE_BASE
+    base_url = NAVER_FINANCE_BASE
     full_url = base_url + upjong_link
     print(f'Fetching stock info from: {full_url}')  # Debugging message
 
@@ -174,9 +179,9 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
 
 def fetch_domestic_stock_info(stock_code, reutersCode, date=None):
     """국내 주식 상세 정보 조회 (API 기반)"""
-    basic_url = f'NAVER_STOCK_BASIC_URL'
-    integ_url = f'NAVER_STOCK_INTEGRATION_URL'
-    finance_url = f'NAVER_STOCK_FINANCE_URL'
+    basic_url = NAVER_STOCK_BASIC_URL.format(stock_code=stock_code)
+    integ_url = NAVER_STOCK_INTEGRATION_URL.format(stock_code=stock_code)
+    finance_url = NAVER_STOCK_FINANCE_URL.format(stock_code=stock_code)
     
     data = {}
     
@@ -233,7 +238,7 @@ def fetch_domestic_stock_info(stock_code, reutersCode, date=None):
     return data
 
 def fetch_worldstock_info_NAVER(headers, stock_code, reutersCode):
-    api_url = f'NAVER_REUTERS_BASIC_URL'
+    api_url = NAVER_REUTERS_BASIC_URL.format(reutersCode=reutersCode)
     print('='*5 , 'fetch_worldstock_info', '='*5 )
     print(api_url)
     try:

@@ -3,6 +3,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
+from secrets.endpoints import NAVER_DIVIDEND_RATE_URL
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
 
 import openpyxl
@@ -22,7 +23,7 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
     all_data = []
 
     # 첫 페이지 호출하여 전체 페이지 수와 종목 수를 알아냄
-    first_page_url = f"NAVER_DIVIDEND_RATE_URL"
+    first_page_url = NAVER_DIVIDEND_RATE_URL.format(page=1, pageSize=pageSize)
     response = requests.get(first_page_url)
 
     if response.status_code != 200:
@@ -62,7 +63,7 @@ def fetch_dividend_stock_list_API(requested_stock_count=0):
         else:
             print(f"[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다. (Page {p})")
             # API 호출 URL
-            url = f"NAVER_DIVIDEND_RATE_URL"
+            url = NAVER_DIVIDEND_RATE_URL.format(page=p, pageSize=pageSize)
             response = requests.get(url)
 
             if response.status_code != 200:

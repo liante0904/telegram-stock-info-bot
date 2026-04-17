@@ -35,6 +35,7 @@ __pycache__/
 *.sublime-project
 *.sublime-workspace
 secrets.json
+secrets/
 *.png
 *.jpg
 nohup.out
