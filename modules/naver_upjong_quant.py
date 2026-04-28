@@ -10,7 +10,7 @@ import os
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
-from secrets.endpoints import (
+from app_secrets.endpoints import (
     NAVER_INDUSTRY_URL, NAVER_FINANCE_BASE,
     NAVER_STOCK_BASIC_URL, NAVER_STOCK_INTEGRATION_URL,
     NAVER_STOCK_FINANCE_URL, NAVER_REUTERS_BASIC_URL,

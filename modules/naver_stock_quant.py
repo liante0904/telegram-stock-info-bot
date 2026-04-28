@@ -3,7 +3,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.CacheManager import CacheManager
-from secrets.endpoints import NAVER_DIVIDEND_RATE_URL
+from app_secrets.endpoints import NAVER_DIVIDEND_RATE_URL
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
 
 import openpyxl
@@ -149,4 +149,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

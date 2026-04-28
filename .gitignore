@@ -47,3 +47,4 @@ recent_searches.json
 *.xls
 (main)telegram-stock-info-bot.code-workspace
 *.json
+.codex

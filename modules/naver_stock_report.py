@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from secrets.endpoints import NAVER_COMPANY_REPORT_URL
+from app_secrets.endpoints import NAVER_COMPANY_REPORT_URL
 
 def fetch_research_data_pc(itemName, itemCode, writeFromDate='', writeToDate=''):
     print(f"Fetching research data for: {itemName} ({itemCode})")

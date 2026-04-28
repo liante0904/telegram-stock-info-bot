@@ -10,6 +10,9 @@ services:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
       - MPLCONFIGDIR=/tmp/matplotlib
+      - APP_SECRETS_ROOT=/secrets
+      - APP_SECRETS_WORKSPACE=telegram-stock-info-bot
+      - APP_SECRETS_FILE=secrets.json
     volumes:
       - ./cache:/app/cache
       - ./db:/app/db
@@ -18,6 +21,7 @@ services:
       - ./csv:/app/csv
       - ./json:/app/json
       - ./send:/app/send
+      - /home/ubuntu/secrets:/secrets:ro
     logging:
       driver: "json-file"
       options:
@@ -36,9 +40,13 @@ services:
       - APP_ENV=${APP_ENV:-prod}
       - TZ=Asia/Seoul
       - MPLCONFIGDIR=/tmp/matplotlib
+      - APP_SECRETS_ROOT=/secrets
+      - APP_SECRETS_WORKSPACE=telegram-stock-info-bot
+      - APP_SECRETS_FILE=secrets.json
     volumes:
       - ./cache:/app/cache
       - ./send:/app/send
+      - /home/ubuntu/secrets:/secrets:ro
     logging:
       driver: "json-file"
       options:

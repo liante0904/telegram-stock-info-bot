@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, time
 import pytz
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from secrets.endpoints import (
+from app_secrets.endpoints import (
     NAVER_INDUSTRY_PAGED_URL, NAVER_KOSPI_INDEX_URL,
     NAVER_NATION_INDEX_URL, NAVER_STOCK_CHART_URL, NAVER_AC_URL,
 )

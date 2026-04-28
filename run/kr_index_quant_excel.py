@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from dotenv import load_dotenv
 from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from secrets.endpoints import NAVER_DOMESTIC_STOCK_URL
+from app_secrets.endpoints import NAVER_DOMESTIC_STOCK_URL
 
 # .env 파일 로드
 load_dotenv()

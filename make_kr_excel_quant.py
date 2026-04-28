@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
-from secrets.endpoints import (
+from app_secrets.endpoints import (
     NAVER_KOSPI_MARKET_URL, NAVER_KOSDAQ_MARKET_URL,
     NAVER_STOCK_PAGE_URL, TELEGRAM_SEND_DOCUMENT_URL,
 )
