@@ -131,37 +131,49 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
     if date:
         if isinstance(date, str):
             try:
-                if len(date) == 6: end_date = datetime.strptime(date, "%y%m%d")
-                else: end_date = datetime.strptime(date, "%Y%m%d")
-            except: end_date = datetime.now()
-        else: end_date = date
+                if len(date) == 6:
+                    end_date = datetime.strptime(date, "%y%m%d")
+                else:
+                    end_date = datetime.strptime(date, "%Y%m%d")
+            except:
+                end_date = datetime.now()
+        else:
+            end_date = date
     else:
         end_date = datetime.now()
-    
-    start_date = end_date - timedelta(days=380)
-    start_date_str = start_date.strftime("%Y%m%d")
-    end_date_str = end_date.strftime("%Y%m%d")
 
-    trend_url = NAVER_STOCK_CHART_URL.format(stock_code=stock_code, start_date=start_date_str, end_date=end_date_str)
+    kst = pytz.timezone("Asia/Seoul")
+    if end_date.tzinfo is None:
+        end_date = kst.localize(datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59))
+    else:
+        end_date = end_date.astimezone(kst)
+
+    start_date = (end_date - timedelta(days=380)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date_str = start_date.strftime("%Y%m%d%H%M")
+    end_date_str = end_date.strftime("%Y%m%d%H%M")
+
+    trend_url = (
+        f"https://api.stock.naver.com/chart/domestic/item/{stock_code}/day"
+        f"?startDateTime={start_date_str}&endDateTime={end_date_str}"
+    )
     print(f"[DEBUG] Fetching data from {trend_url}")
     trend_data = fetch_data(trend_url)
 
     if not trend_data:
         return {}
-    
-    # 현재 데이터가 없는 경우 가장 최신 데이터로 대체
-    current_price = None
-    for item in reversed(trend_data):  # 최신 데이터부터 탐색
-        if 'closePrice' in item:
-            current_price = int(item['closePrice'])
-            break
 
-    if current_price is None:
+    prices = {}
+    for item in trend_data:
+        local_date = item.get("localDate")
+        close_price = item.get("closePrice")
+        if local_date and close_price is not None:
+            prices[str(local_date)] = int(round(float(close_price)))
+
+    if not prices:
         print("[ERROR] No valid current price found in data.")
         return {"error": "No valid current price found"}
 
-    # 가격 데이터를 날짜별로 정리
-    prices = {item['localDate']: int(item['closePrice']) for item in trend_data}
+    current_price = prices[max(prices.keys())]
 
     def calculate_return(past_price):
         if past_price is not None:

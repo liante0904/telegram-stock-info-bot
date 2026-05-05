@@ -19,14 +19,15 @@ def ensure_directory(path):
     if not os.path.exists(path): os.makedirs(path, exist_ok=True)
 
 def fetch_all_stocks(base_url, market_name):
-    params = {"page": 1, "pageSize": 100}
-    response = requests.get(base_url, headers=headers, params=params)
+    first_url = base_url.format(page=1, page_size=100)
+    response = requests.get(first_url, headers=headers)
     if response.status_code != 200: return [], []
     total_count = response.json().get("totalCount", 0)
     total_pages = math.ceil(total_count / 100)
     all_stocks, etf_etn_stocks = [], []
     for page in range(1, total_pages + 1):
-        res = requests.get(base_url, headers=headers, params={"page": page, "pageSize": 100})
+        page_url = base_url.format(page=page, page_size=100)
+        res = requests.get(page_url, headers=headers)
         if res.status_code == 200:
             for s in res.json().get("stocks", []):
                 name = s.get("stockName", "")
@@ -38,7 +39,7 @@ def fetch_all_stocks(base_url, market_name):
 
 def fetch_quant_data(stock_info, target_date=None):
     code = stock_info["종목코드"]
-    url = NAVER_STOCK_PAGE_URL.format(code=code)
+    url = NAVER_STOCK_PAGE_URL.format(stock_code=code, code=code)
     # 날짜 인자를 추가하여 API 호출
     return fetch_stock_info_quant_API(code, url=url, date=target_date) or {}
 
