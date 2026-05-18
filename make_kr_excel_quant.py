@@ -32,7 +32,12 @@ def fetch_all_stocks(base_url, market_name):
             for s in res.json().get("stocks", []):
                 name = s.get("stockName", "")
                 if '스팩' in name and '호' in name: continue
-                info = {"종목코드": s.get("itemCode", ""), "종목명": name, "시가총액(억)": int(str(s.get("marketValue", "0")).replace(",", ""))}
+                raw_mv = str(s.get("marketValue", "0")).replace(",", "").strip()
+                try:
+                    mv = int(raw_mv) if raw_mv and raw_mv != "-" else 0
+                except ValueError:
+                    mv = 0
+                info = {"종목코드": s.get("itemCode", ""), "종목명": name, "시가총액(억)": mv}
                 if s.get("stockEndType") in ["etf", "etn"]: etf_etn_stocks.append(info)
                 else: all_stocks.append(info)
     return all_stocks, etf_etn_stocks
