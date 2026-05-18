@@ -18,11 +18,12 @@ headers = {"User-Agent": "Mozilla/5.0"}
 
 # 전역 DB 캐시 매니저
 CACHE_DB_PATH = Path(__file__).parent / "cache" / "stock_cache.db"
-ensure_directory(CACHE_DB_PATH.parent)
 cache_manager = CacheManager(str(CACHE_DB_PATH))
 
 def ensure_directory(path):
     if not os.path.exists(path): os.makedirs(path, exist_ok=True)
+
+ensure_directory(CACHE_DB_PATH.parent)
 
 def fetch_all_stocks(base_url, market_name):
     first_url = base_url.format(page=1, page_size=100)

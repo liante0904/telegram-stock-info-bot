@@ -1,10 +1,13 @@
 import sys, os, concurrent.futures, pandas as pd
 from pathlib import Path
 from datetime import datetime
-from config import SEND_DIR, CACHE_DB_PATH
+from config import SEND_DIR, CACHE_DB_PATH, NAVER_KOSPI_MARKET_URL, NAVER_KOSDAQ_MARKET_URL
 from data_fetcher import fetch_all_stocks, add_quant_data, process_market_unit
 from excel_writer import save_to_excel
 from telegram_sender import send_to_telegram
+
+kospi_url = NAVER_KOSPI_MARKET_URL
+kosdaq_url = NAVER_KOSDAQ_MARKET_URL
 
 def ensure_directory(path):
     if not os.path.exists(path):
