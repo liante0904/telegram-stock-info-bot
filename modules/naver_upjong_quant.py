@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd  # pandas를 추가합니다
 import sys
 import os
+from pathlib import Path
 
 # 현재 스크립트의 상위 디렉터리를 모듈 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -24,12 +25,19 @@ DEFAULT_HEADERS = {
 }
 NUMERIC_KEYS = ['PER', 'fwdPER', 'PBR', '배당수익률', '예상배당수익률', 'ROE', '현재가', '전일비', '등락률', '1D', '1W', '1M', '3M', '6M', 'YTD', '1Y']
 
+# 전역 DB 캐시 매니저
+CACHE_DB_PATH = Path(__file__).parent.parent / "cache" / "stock_cache.db"
+os.makedirs(CACHE_DB_PATH.parent, exist_ok=True)
+cache_manager = CacheManager(str(CACHE_DB_PATH))
+
 def fetch_upjong_list_API(nation_code):
-    cache_manager = CacheManager("cache", "upjong")
+    cache_key = f"upjong_list_{nation_code}"
     
-    if cache_manager.is_cache_valid('upjong', nation_code):
+    # DB 캐시 확인
+    cached = cache_manager.load_cache(cache_key)
+    if cached and cache_manager.is_cache_valid(cache_key, nation_code):
         print("[DEBUG] 유효한 캐시를 발견했습니다.")
-        return cache_manager.load_cache('upjong').get('result', [])
+        return cached.get('result', [])
     
     print("[DEBUG] 유효한 캐시가 없으므로 API를 호출합니다.")
     url = NAVER_INDUSTRY_URL
@@ -47,9 +55,9 @@ def fetch_upjong_list_API(nation_code):
         link = f"/sise/sise_group_detail.naver?type=upjong&no={group['no']}"
         result.append((name, change_rate, link))
     
-    if data['marketStatus'] == 'CLOSE':
-        print("[DEBUG] 마켓이 원래 개장 중이어야 하지만, 현재는 CLOSE 상태입니다 (휴장일 가능성).")
-        cache_manager.save_cache('upjong', {'result': result, 'marketStatus': 'CLOSE'})
+    # DB에 캐시 저장
+    cache_data = {'result': result, 'marketStatus': data.get('marketStatus', 'CLOSE')}
+    cache_manager.save_cache(cache_key, cache_data, nation_code)
     
     return result
 
@@ -113,12 +121,14 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     
     target = results[0]
     stock_code, stock_name, url = target['code'], target['name'], target['url']
-    reutersCode, nationCode = target['reutersCode'], target['nationCode']
+    reutersCode, nationCode = target['reutersCode'], target.get('nationCode', 'KOR')
     
-    # 2. 캐시 확인
-    cache_manager = CacheManager("cache", "stock")
-    if cache_manager.is_cache_valid(stock_code, nationCode):
-        return cache_manager.load_cache(stock_code).get('result', {})
+    # 2. DB 캐시 확인
+    cache_key = f"quant_{stock_code}"
+    cached = cache_manager.load_cache(cache_key)
+    if cached and cache_manager.is_cache_valid(cache_key, nationCode):
+        print(f"[DEBUG] {stock_name} 캐시 사용")
+        return cached
     
     # 3. 데이터 수집 (국내/해외 분기)
     try:
@@ -173,8 +183,10 @@ def fetch_stock_info_quant_API(stock_code=None, stock_name=None, url=None, reute
     # 숫자 변환 유틸 적용
     ordered_data = clean_numeric_dict(ordered_data, NUMERIC_KEYS)
     
-    # 5. 캐시 저장 및 반환
-    cache_manager.save_cache(stock_code, {'result': ordered_data})
+    # 5. DB에 캐시 저장
+    if ordered_data:
+        cache_manager.save_cache(cache_key, ordered_data, nationCode)
+    
     return ordered_data
 
 def fetch_domestic_stock_info(stock_code, reutersCode, date=None):

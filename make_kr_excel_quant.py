@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
 from modules.naver_upjong_quant import fetch_stock_info_quant_API
+from models.CacheManager import CacheManager
 from app_secrets.endpoints import (
     NAVER_KOSPI_MARKET_URL, NAVER_KOSDAQ_MARKET_URL,
     NAVER_STOCK_PAGE_URL, TELEGRAM_SEND_DOCUMENT_URL,
@@ -14,6 +15,11 @@ kospi_url = NAVER_KOSPI_MARKET_URL
 kosdaq_url = NAVER_KOSDAQ_MARKET_URL
 max_workers = 4 
 headers = {"User-Agent": "Mozilla/5.0"}
+
+# 전역 DB 캐시 매니저
+CACHE_DB_PATH = Path(__file__).parent / "cache" / "stock_cache.db"
+ensure_directory(CACHE_DB_PATH.parent)
+cache_manager = CacheManager(str(CACHE_DB_PATH))
 
 def ensure_directory(path):
     if not os.path.exists(path): os.makedirs(path, exist_ok=True)
@@ -44,9 +50,21 @@ def fetch_all_stocks(base_url, market_name):
 
 def fetch_quant_data(stock_info, target_date=None):
     code = stock_info["종목코드"]
+    cache_key = f"quant_{code}"
+    
+    # DB 캐시 확인
+    cached = cache_manager.load_cache(cache_key)
+    if cached and cache_manager.is_cache_valid(cache_key, "KOR"):
+        return cached
+    
     url = NAVER_STOCK_PAGE_URL.format(stock_code=code, code=code)
-    # 날짜 인자를 추가하여 API 호출
-    return fetch_stock_info_quant_API(code, url=url, date=target_date) or {}
+    result = fetch_stock_info_quant_API(code, url=url, date=target_date) or {}
+    
+    # DB에 캐시 저장
+    if result:
+        cache_manager.save_cache(cache_key, result, "KOR")
+    
+    return result
 
 def add_quant_data(df, market_name, target_date=None):
     if df.empty: return df
@@ -64,6 +82,19 @@ def process_market_unit(market_tuple, target_date=None):
     stocks, etf_etn = fetch_all_stocks(base_url, market_name)
     df = add_quant_data(pd.DataFrame(stocks), market_name, target_date)
     return market_name, df, etf_etn
+
+def create_excel_file(market_dfs, df_etf, file_path):
+    """엑셀 파일 생성 (별도 함수로 분리)"""
+    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
+        if "KOSPI" in market_dfs:
+            market_dfs["KOSPI"].to_excel(writer, sheet_name="KOSPI", index=False)
+        if "KOSDAQ" in market_dfs:
+            market_dfs["KOSDAQ"].to_excel(writer, sheet_name="KOSDAQ", index=False)
+        df_etf.to_excel(writer, sheet_name="ETF_ETN", index=False)
+        for sheet in writer.sheets.values():
+            sheet.set_column(1, 1, 25)
+            sheet.freeze_panes(1, 0)
+    return file_path
 
 def send_to_telegram(file_name, target_date):
     BASE_DIR = Path(__file__).parent.resolve()
@@ -108,13 +139,8 @@ def main():
     print("[ETF_ETN] 데이터 수집 시작...")
     df_etf = add_quant_data(pd.DataFrame(combined_etf_etn), "ETF_ETN", target_date)
 
-    with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
-        if "KOSPI" in market_dfs: market_dfs["KOSPI"].to_excel(writer, sheet_name="KOSPI", index=False)
-        if "KOSDAQ" in market_dfs: market_dfs["KOSDAQ"].to_excel(writer, sheet_name="KOSDAQ", index=False)
-        df_etf.to_excel(writer, sheet_name="ETF_ETN", index=False)
-        for sheet in writer.sheets.values():
-            sheet.set_column(1, 1, 25)
-            sheet.freeze_panes(1, 0)
+    # 분리된 함수 호출
+    create_excel_file(market_dfs, df_etf, file_path)
     
     print(f"✅ [{target_date}] 엑셀 생성 완료 -> 전송")
     send_to_telegram(file_name, target_date)

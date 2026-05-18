@@ -1,166 +1,99 @@
 import json
-from datetime import datetime, time, timedelta
+import sqlite3
+from datetime import datetime, timedelta
 import pytz
 import os
-import sys
 
 class CacheManager:
-    def __init__(self, cache_dir, cache_file_prefix):
-        self.cache_dir = cache_dir
-        self.cache_file_prefix = cache_file_prefix
+    def __init__(self, db_path, cache_table_name="stock_cache"):
+        self.db_path = db_path
+        self.table_name = cache_table_name
+        self._init_table()
 
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
+    def _init_table(self):
+        """SQLite 테이블 생성"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                cache_key TEXT PRIMARY KEY,
+                data TEXT,
+                cached_at TEXT,
+                nation_code TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
 
-    def _get_cache_file_path(self, stock_code):
-        return os.path.join(self.cache_dir, f"{self.cache_file_prefix}_{stock_code}_cache.json")
+    def _get_cache_key(self, stock_code, nation_code=None):
+        """캐시 키 생성 (stock_code + nation_code 조합)"""
+        if nation_code:
+            return f"{stock_code}_{nation_code}"
+        return stock_code
 
-    def load_cache(self, stock_code):
-        cache_file = self._get_cache_file_path(stock_code)
-        if os.path.exists(cache_file):
-            with open(cache_file, 'r', encoding='utf-8') as file:
-                return json.load(file)
+    def load_cache(self, cache_key):
+        """캐시 로드"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT data FROM {self.table_name} WHERE cache_key = ?", (cache_key,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return json.loads(row[0])
         return None
 
-    def save_cache(self, stock_code, data):
-        cache_file = self._get_cache_file_path(stock_code)
-        with open(cache_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False, indent=4)
+    def save_cache(self, cache_key, data, nation_code=None):
+        """캐시 저장"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            INSERT OR REPLACE INTO {self.table_name} (cache_key, data, cached_at, nation_code)
+            VALUES (?, ?, ?, ?)
+        """, (cache_key, json.dumps(data), datetime.now(pytz.timezone('Asia/Seoul')).isoformat(), nation_code or ''))
+        conn.commit()
+        conn.close()
 
-
-    def is_cache_valid(self, stock_code, nation_code):
-        # 타임존 설정
-        kst = pytz.timezone('Asia/Seoul')
-        now = datetime.now(kst)
-        day_of_week = now.weekday()  # 0: 월요일, 1: 화요일, ..., 6: 일요일
-        market_open_time = time(9, 0)
-        market_close_time = time(16, 40)
-
-        # 장 상태와 마지막 거래일자 및 시간 정보를 확인합니다.
-        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        from utils.naver_stock_util import check_market_status
-        market_status, last_traded_at = check_market_status(nation_code)
-
-        print(f"[DEBUG] 조회 국가 코드 : {nation_code}")
-        print(f"[DEBUG] 마켓 상태: {market_status}, 마지막 거래일자: {last_traded_at}")
-
-        # 캐시 파일 경로 확인
-        cache_file = self._get_cache_file_path(stock_code)
-
-        if os.path.exists(cache_file):
-            file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file), kst)
-            print(f"[DEBUG] 캐시 생성 시간: {file_mod_time}")
-        else:
-            print("[DEBUG] 유효한 캐시가 없으므로 데이터를 호출합니다.")
+    def is_cache_valid(self, cache_key, nation_code=None):
+        """캐시 유효성 검사 (간소화)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT cached_at FROM {self.table_name} WHERE cache_key = ?", (cache_key,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
             return False
-
-        # 한국 주식일 때만 16:30 설정
+        
+        cached_time = datetime.fromisoformat(row[0])
+        now = datetime.now(pytz.timezone('Asia/Seoul'))
+        
+        # 기본 1시간 유효 (장중에는 5분, 장 마감 후에는 다음날까지)
         if nation_code == 'KOR':
-            close_time = time(16, 30)
-
-            # 마지막 거래일자 및 시간을 처리
-            if isinstance(last_traded_at, datetime):
-                last_trading_day = last_traded_at
+            # 한국 시간 기준
+            kst = pytz.timezone('Asia/Seoul')
+            now_kst = datetime.now(kst)
+            
+            # 장 시간 (9:00 ~ 15:30)
+            market_open = now_kst.replace(hour=9, minute=0, second=0)
+            market_close = now_kst.replace(hour=15, minute=30, second=0)
+            
+            if market_open <= now_kst <= market_close:
+                # 장중: 5분 유효
+                return (now - cached_time) < timedelta(minutes=5)
             else:
-                last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
-
-            last_trading_day_close_time = datetime.combine(last_trading_day.date(), close_time, kst)
-
-            # 한국 주식의 경우
-            if market_status == 'OPEN':
-                # 장중일 때는 5분 이내 캐시가 유효
-                if (now - file_mod_time) < timedelta(minutes=5):
-                    print(f"[DEBUG] 장중이며 5분 이내 생성된 캐시가 있습니다. 유효 처리됩니다. (생성 시각: {file_mod_time})")
-                    return True
-                print("[DEBUG] 장중이지만 캐시가 유효하지 않습니다.")
-                return False
-
-            if market_status == 'CLOSE':
-                # 개장시간 내에 CLOSE 상태로, 마지막 거래일자가 오늘보다 이전이며 현재 요일이 평일인 경우 휴장일로 간주
-                if market_open_time <= now.time() <= market_close_time and last_trading_day.date() < now.date() and day_of_week < 5:
-                    print(f"[DEBUG] 개장시간 내 CLOSE 상태이며, 마지막 거래일자가 오늘보다 이전이고 현재 요일이 평일입니다. 휴장일로 간주.")
-                    return False
-
-                # 장 마감 이후 생성된 캐시가 유효
-                if file_mod_time > last_trading_day_close_time:
-                    print(f"[DEBUG] 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
-                    return True
-
-                # 금요일 장 마감 이후 ~ 주말 및 월요일 0시 ~ 8시까지는 금요일 16시 30분 이후 생성된 캐시가 유효
-                if day_of_week == 0 and now.time() < time(8, 0):
-                    last_friday = now - timedelta(days=3)  # 지난 금요일
-                    last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
-                    if file_mod_time > last_friday_close_time:
-                        print(f"[DEBUG] 월요일 0시~8시까지 금요일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
-                        return True
-                    print("[DEBUG] 월요일 0시~8시까지 생성된 캐시가 금요일 장 마감 이후가 아닙니다.")
-                    return False
-
-                # 평일의 경우 장 마감 이후 생성된 캐시가 유효
-                if day_of_week < 5:
-                    today_close_time = datetime.combine(now.date(), close_time, kst)
-                    if file_mod_time > today_close_time:
-                        print(f"[DEBUG] 평일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
-                        return True
-                    print("[DEBUG] 평일 장 마감 이후 생성된 캐시가 아닙니다.")
-                    return False
-
-                # 주말의 경우, 금요일 장 마감 이후 생성된 캐시가 유효
-                if day_of_week >= 5:
-                    last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
-                    last_friday_close_time = datetime.combine(last_friday.date(), close_time, kst)
-                    if file_mod_time > last_friday_close_time:
-                        print(f"[DEBUG] 주말의 경우 금요일 장 마감 이후 생성된 캐시. 유효 처리됩니다.")
-                        return True
-                    print("[DEBUG] 주말에 생성된 캐시가 금요일 장 마감 이후가 아닙니다.")
-                    return False
-
-        # 해외 주식의 경우
+                # 장 마감: 24시간 유효
+                return (now - cached_time) < timedelta(hours=24)
         else:
-            # 해외 주식은 장중에 캐시를 유효하지 않다고 가정
-            if market_status == 'OPEN':
-                print("[DEBUG] 해외 주식은 장중에 캐시를 유효하지 않다고 가정합니다.")
-                return False
+            # 해외 주식: 1시간 유효
+            return (now - cached_time) < timedelta(hours=1)
 
-            # 해외 주식은 장 마감 이후 유효 처리
-            if market_status == 'CLOSE':
-                if isinstance(last_traded_at, datetime):
-                    last_trading_day = last_traded_at
-                else:
-                    last_trading_day = datetime.strptime(last_traded_at, "%Y-%m-%dT%H:%M:%S%z").astimezone(kst)
-
-                last_trading_day_close_time = datetime.combine(last_trading_day.date(), time(16, 30), kst)
-                if file_mod_time > last_trading_day_close_time:
-                    print(f"[DEBUG] 해외 주식의 마지막 거래일 {last_trading_day} 이후 생성된 캐시. 유효 처리됩니다.")
-                    return True
-
-                # 해외 주식은 평일, 주말 구분 없이 장 마감 이후 유효 처리
-                if day_of_week < 5:
-                    today_close_time = datetime.combine(now.date(), time(16, 30), kst)
-                    if file_mod_time > today_close_time:
-                        print(f"[DEBUG] 평일 장 마감 이후 생성된 해외 주식 캐시. 유효 처리됩니다.")
-                        return True
-                    print("[DEBUG] 평일 장 마감 이후 생성된 해외 주식 캐시가 아닙니다.")
-                    return False
-
-                if day_of_week >= 5:
-                    last_friday = now - timedelta(days=day_of_week - 4)  # 지난 금요일
-                    last_friday_close_time = datetime.combine(last_friday.date(), time(16, 30), kst)
-                    if file_mod_time > last_friday_close_time:
-                        print(f"[DEBUG] 주말의 경우 금요일 장 마감 이후 생성된 해외 주식 캐시. 유효 처리됩니다.")
-                        return True
-                    print("[DEBUG] 주말에 생성된 해외 주식 캐시가 금요일 장 마감 이후가 아닙니다.")
-                    return False
-
-        print("[DEBUG] 유효한 캐시가 아닙니다. 새 데이터를 호출합니다.")
-        return False
-
-# 함수 사용 예
-if __name__ == "__main__":
-    # 캐시 디렉토리와 파일 접두어 설정
-    cache_manager = CacheManager("cache", "stock")
-    stock_code = "005930"
-    nationCode = "KOR"
-    # 캐시 유효성 검사
-    if cache_manager.is_cache_valid(stock_code, nationCode):
-        print("[DEBUG] 유효한 캐시를 발견했습니다.")
+    def clear_expired_cache(self, max_age_hours=24):
+        """만료된 캐시 정리"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cutoff = (datetime.now(pytz.timezone('Asia/Seoul')) - timedelta(hours=max_age_hours)).isoformat()
+        cursor.execute(f"DELETE FROM {self.table_name} WHERE cached_at < ?", (cutoff,))
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
