@@ -507,7 +507,15 @@ def main():
     
     application.post_init = post_init
 
-    application.run_polling()
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    print(f"Bot starting with token: {token[:15]}... polling...", flush=True)
+    try:
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"FATAL: run_polling crashed: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == '__main__':

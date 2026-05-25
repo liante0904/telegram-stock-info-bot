@@ -5,6 +5,7 @@ services:
     restart: always
     user: "1001:1001"
     env_file:
+      - /home/ubuntu/secrets/common/telegram.env
       - .env
     environment:
       - APP_ENV=${APP_ENV:-prod}
@@ -21,6 +22,16 @@ services:
       - ./csv:/app/csv
       - ./json:/app/json
       - ./send:/app/send
+      - ./main.py:/app/main.py
+      - ./make_kr_excel_quant.py:/app/make_kr_excel_quant.py
+      - ./make_us_excel_quant.py:/app/make_us_excel_quant.py
+      - ./handler:/app/handler
+      - ./modules:/app/modules
+      - ./utils:/app/utils
+      - ./models:/app/models
+      - ./run:/app/run
+      - ./reporter_worker:/app/reporter_worker
+      - ./app_secrets:/app/app_secrets:ro
       - /home/ubuntu/secrets:/secrets:ro
     logging:
       driver: "json-file"
@@ -35,6 +46,7 @@ services:
     user: "1001:1001"
     restart: always
     env_file:
+      - /home/ubuntu/secrets/common/telegram.env
       - .env
     environment:
       - APP_ENV=${APP_ENV:-prod}
@@ -46,6 +58,16 @@ services:
     volumes:
       - ./cache:/app/cache
       - ./send:/app/send
+      - ./main.py:/app/main.py
+      - ./make_kr_excel_quant.py:/app/make_kr_excel_quant.py
+      - ./make_us_excel_quant.py:/app/make_us_excel_quant.py
+      - ./handler:/app/handler
+      - ./modules:/app/modules
+      - ./utils:/app/utils
+      - ./models:/app/models
+      - ./run:/app/run
+      - ./reporter_worker:/app/reporter_worker
+      - ./app_secrets:/app/app_secrets:ro
       - /home/ubuntu/secrets:/secrets:ro
     logging:
       driver: "json-file"
