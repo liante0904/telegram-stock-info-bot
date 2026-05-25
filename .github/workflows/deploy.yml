@@ -53,7 +53,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
 
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
-            cd /home/ubuntu/prod/telegram-stock-info-bot
+            cd /home/ubuntu/legacy/telegram-stock-info-bot
             git fetch origin master
             git reset --hard origin/master
 
