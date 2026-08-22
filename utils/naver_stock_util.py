@@ -176,7 +176,10 @@ def stock_fetch_yield_by_period(stock_code=None, date=None):
     current_price = prices[max(prices.keys())]
 
     def calculate_return(past_price):
-        if past_price is not None:
+        # 일부 ETN/채권형 상품은 휴장·상장 직후 구간에 0 종가가
+        # 내려올 수 있다. 이를 유효 가격으로 계산하면 division by zero로
+        # 해당 종목 전체 quant 수집이 실패한다.
+        if past_price is not None and past_price > 0 and current_price >= 0:
             percentage_change = round((current_price / past_price - 1) * 100, 2)
             return "{:.2f}".format(percentage_change)
         return "N/A"
