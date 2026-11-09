@@ -138,6 +138,9 @@ async def show_commands(update: Update, context: CallbackContext) -> None:
     await context.bot.send_message(chat_id=update.effective_chat.id, text=commands_text)
 
 async def handle_message(update: Update, context: CallbackContext) -> None:
+    if update.effective_user is None or update.message is None:
+        return
+
     user_id = str(update.effective_user.id)
     user_input = update.message.text
     chat_id = update.effective_chat.id
