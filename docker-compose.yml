@@ -1,6 +1,7 @@
 services:
   telegram-bot:
-    image: ghcr.io/liante0904/telegram-stock-info-bot:latest
+    # Pin releases by registry digest; update this digest when promoting a new image.
+    image: ghcr.io/liante0904/telegram-stock-info-bot@sha256:1b1c82f09c0425db93da93a8a74a83bc29a7f58494a7459a10bba8ad574eaa5c
     container_name: stock-telegram-bot-${APP_ENV:-prod}
     restart: always
     user: "1001:1001"
